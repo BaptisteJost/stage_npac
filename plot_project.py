@@ -13,7 +13,7 @@ import matplotlib.ticker as mticker
 
 
 def cl_comparison(cl_unchanged, cl_rot, angle):
-    #commit test
+
     ls = np.arange(cl_unchanged.shape[0])
     fig, ax = plt.subplots(3,2, figsize = (12,12))
 
@@ -110,13 +110,20 @@ def white_noise_vs_lensing(nl_spectra, powers):
 
 def spectra(cl_dict):
     ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0])
-    fig, ax = plt.subplots(3,2, figsize = (12,12))
+    spectra_number = cl_dict[ list(cl_dict.keys())[0] ].shape[1]
+    if spectra_number == 4:
+        fig, ax = plt.subplots(2,2, figsize = (12,12))
+
+    if spectra_number==6 :
+        fig, ax = plt.subplots(3,2, figsize = (12,12))
+
     ax[0,0].set_title('TT')
     ax[0,1].set_title(r'$EE$')
     ax[1,0].set_title(r'$BB$')
     ax[1,1].set_title(r'$TE$');
-    ax[2,0].set_title(r'$EB$');
-    ax[2,1].set_title(r'$TB$');
+    if spectra_number==6:
+        ax[2,0].set_title(r'$EB$');
+        ax[2,1].set_title(r'$TB$');
 
     for key,value in cl_dict.items():
         color = next(ax[1,1]._get_lines.prop_cycler)['color']
@@ -125,9 +132,11 @@ def spectra(cl_dict):
         ax[1,0].plot(ls,cl_dict[key][:,2],label='{}'.format(key), color = color)
         ax[1,1].plot(ls,cl_dict[key][:,3],label='{}'.format(key), color = color)
         ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
-        ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color)
-        ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color)
-        ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
+        if spectra_number==6:
+            ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color)
+            ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
+            ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color)
+            ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
 
     for ax_ in ax.reshape(-1):
         ax_.set_xlim([2,cl_dict[ list(cl_dict.keys())[0] ].shape[0]]); \
@@ -211,8 +220,8 @@ def cumulative_error_3D(fisher_element, key):
     cbar = fig2.colorbar(contour)
     cbar.ax.set_ylabel(r'$ \frac{1}{\sqrt{ \sum_{ \ell_{min} }^{\ell_{max}}{F_{\ell}}}} $',fontsize = 16)
 
-    if len(key[0])==2 :
-        if key[1] == 'no noise':
+    if key[1]=='lensed_scalar' :
+        if key[0][1] == 'no noise':
             ax.set_title( 'surface plot of cumulative error for rotation {}, and NO noise, with lensing'.format(key[0][0]) )
             ax2.set_title( 'heatmap of cumulative error for rotation {}, and NO noise, with lensing'.format(key[0][0]) )
         else:

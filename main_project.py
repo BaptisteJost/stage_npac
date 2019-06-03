@@ -16,7 +16,7 @@ raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers: print(name)
 
-spectrum = 'unlensed_total' #'unlensed_total'
+spectrum = 'total' #'unlensed_total'
 unchanged_cl = powers[spectrum]
 
 angle_array = np.linspace(0.1 , 3. , 5)
@@ -27,35 +27,30 @@ print('angle_array',angle_array)
 spectra_dict = lib.get_spectra_dict(unchanged_cl, angle_array, include_unchanged = False)
 # print(spectra_dict)
 beam_array = np.linspace(0,30,4)
+print('beam_array',beam_array)
 for k in beam_array:
     w_inv = (2 * u.uK * u.arcmin)**2
     theta_fwhm = k * u.arcmin
     nl_spectra = lib.get_noise_spectra(w_inv, theta_fwhm, l_max, raw_output = False)
     spectra_dict[ (w_inv, theta_fwhm) ]=nl_spectra
 
-
-
 for k in beam_array:
     for a in angle_array:
         lib.spectra_addition(spectra_dict, a, (w_inv, k * u.arcmin))
 
-lensing = True
+lensing = False
 if lensing == True:
     spectra_dict['lensed_scalar'] =lib.cl_rotation( powers['lensed_scalar'] ,0.*u.deg)
     for k in beam_array:
         for a in angle_array:
             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
+
 # print('spectra dict keys=',spectra_dict.keys())
 angle_fisher_array = angle_array
 # print('angle_fisher_array=',angle_fisher_array)
 beam_fisher_array = beam_array
 fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, lensing)
 
-
-# fisher_array, fisher_element_array = lib.truncated_fisher_angle( spectra_dict[0*u.deg] , 3. * u.deg, spectra_dict[(3.*u.deg,(w_inv, 30.*u.arcmin))], f_sky = 1, return_elements = True, raw_cl = False, raw_cl_rot = False)
-# print('fisher_array',fisher_array)
-# print('diff EB-TEB=',fisher_array[-1]-fisher_array[-3])
-# print('diff fisher=',np.sum(fisher_dict[(3*u.deg,(w_inv, 30.*u.arcmin))]) - fisher_array[-1])
 
 fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array )
 
@@ -106,17 +101,16 @@ if plot_spectra == True:
     plotpro.spectra(spectra_dict)
     plt.show()
 
-plot_truncated_fisher_cumlulative = 0
+plot_truncated_fisher_cumlulative = 1
 if plot_truncated_fisher_cumlulative == True:
     plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, (3*u.deg,(w_inv, 30.*u.arcmin)))
     plt.show()
 
 plot_cumulative_3D = 1
 if plot_cumulative_3D == True:
-    surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar')],((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar'))
+    surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],(3*u.deg, (w_inv, 30. * u.arcmin)))
     plt.show(surface)
     plt.show(heatmap)
-
 
 # ((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar')
 

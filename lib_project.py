@@ -10,7 +10,7 @@ import healpy as hp
 from astropy import units as u
 
 
-def get_basics(l_max = 5000 , raw_cl = False):
+def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False):
     # l_max = 5000
     pars = camb.CAMBparams(WantTensors = True, max_l_tensor = l_max)
     #This function sets up CosmoMC-like settings, with one massive neutrino and helium set using BBN consistency
@@ -24,6 +24,9 @@ def get_basics(l_max = 5000 , raw_cl = False):
 
     results = camb.get_results(pars)
     powers =results.get_cmb_power_spectra(pars, lmax = l_max, CMB_unit='muK', raw_cl = raw_cl)
+    if lens_potential == True:
+        lens_potential_spectrum = results.get_lens_potential_cls(l_max)
+        return pars, results, powers, lens_potential_spectrum
     return pars, results, powers
 
 
