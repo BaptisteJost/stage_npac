@@ -108,7 +108,7 @@ def white_noise_vs_lensing(nl_spectra, powers):
 
 
 
-def spectra(cl_dict):
+def spectra(cl_dict, linear_cross = False):
     ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0])
     spectra_number = cl_dict[ list(cl_dict.keys())[0] ].shape[1]
     if spectra_number == 4:
@@ -131,12 +131,14 @@ def spectra(cl_dict):
         ax[0,1].plot(ls,cl_dict[key][:,1],label='{}'.format(key), color = color)
         ax[1,0].plot(ls,cl_dict[key][:,2],label='{}'.format(key), color = color)
         ax[1,1].plot(ls,cl_dict[key][:,3],label='{}'.format(key), color = color)
-        ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
+        if linear_cross == False:
+            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
         if spectra_number==6:
             ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color)
-            ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
             ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color)
-            ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
+            if linear_cross == False:
+                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
+                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
 
     for ax_ in ax.reshape(-1):
         ax_.set_xlim([2,cl_dict[ list(cl_dict.keys())[0] ].shape[0]]); \
@@ -144,6 +146,10 @@ def spectra(cl_dict):
         ax_.set_yscale('log');\
         ax_.set_xlabel(r'$\ell$')
         ax_.set_ylabel(r'$C_{\ell} \frac{\ell (\ell +1)}{2 \pi}$')
+    if linear_cross == True:
+        for ax_ in ax.reshape(-1)[3:]:
+            ax_.set_xscale('linear')
+            ax_.set_yscale('linear')
     ax[0,0].legend( borderaxespad=0.,loc='upper left', bbox_to_anchor=(-0.2, 1.5 ))
 
     return 0
