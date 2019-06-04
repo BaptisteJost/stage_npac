@@ -8,6 +8,7 @@ import lib_project as lib
 import matplotlib.patches as mpatches
 import healpy as hp
 from astropy import units as u
+import pysm
 
 
 def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False):
@@ -289,7 +290,7 @@ def spectra_addition(spectra_dict, key1, key2):
     return 0
 
 
-def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = False, fisher_dict = {} ):
+def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = False, foregrounds = False, fisher_dict = {} ):
     if type(angle_array[0].shape) == ():
         angle_array = [angle_array]
     if fisher_dict == {}:
@@ -307,7 +308,11 @@ def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = Fa
             for k in beam_array :
                 fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot = spectra_dict[( (key_rot,(w_inv, k*u.arcmin)),'lensed_scalar' )] , return_elements = True)
                 fisher_dict[((key_rot,(w_inv, k*u.arcmin)),'lensed_scalar')] = fisher_element
-
+    if foregrounds == True :
+        for key_rot in angle_array:
+            for k in beam_array :
+                fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot = spectra_dict[( (key_rot,(w_inv, k*u.arcmin)),'foregrounds' )] , return_elements = True)
+                fisher_dict[((key_rot,(w_inv, k*u.arcmin)),'foregrounds')] = fisher_element
     return fisher_dict
 
 
@@ -399,6 +404,27 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky = 1, re
     if return_elements == True :
         return truncated_fisher_array, truncated_fisher_element_array
     return truncated_fisher_array
+
+def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_R2.00.fits", mask_field=2):
+    nu = nu_u.to(u.GHz).value
+    l_max = nside * 4
+    sky_config ={'dust': pysm.nominal.models('d0', nside), 'synchrotron': pysm.nominal.models('s0', nside)}
+    sky = pysm.Sky(sky_config)
+    dust_signal = sky.dust(nu)
+    synchrotron_signal = sky.synchrotron(nu)
+
+    mask = np.array(hp.ud_grade( hp.read_map(mask_file ,field=mask_field).astype(np.bool), nside))
+
+    proper_dust_masked = hp.ma(dust_signal)
+    proper_dust_masked.mask = np.logical_not(mask)
+
+    proper_sync_masked = hp.ma(synchrotron_signal)
+    proper_sync_masked.mask = np.logical_not(mask)
+
+    cl_dust_masked = np.array([hp.anafast(proper_dust_masked, lmax = l_max + 1).T[l,:] *l*(l+1)/(2*np.pi) for l in range(l_max + 1)])
+    cl_synchrotron_masked = np.array([ hp.anafast(proper_sync_masked, lmax = l_max + 1).T[l,:] * l*(l+1)/(2*np.pi) for l in range(l_max + 1)])
+
+    return {'dust':cl_dust_masked, 'synchrotron':cl_synchrotron_masked}
 
 
 """""

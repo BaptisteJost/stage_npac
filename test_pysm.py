@@ -14,12 +14,12 @@ import copy
 
 import pysm
 
+
 nside = 64
 l_max = nside * 4
 raw_cl = True
 
 pars, results, powers = lib.get_basics(l_max, raw_cl)
-
 sky_config ={'dust': pysm.nominal.models('d0', nside)}
 sky_config['synchrotron']= pysm.nominal.models('s0', nside)
 # sky_config['cmb']= pysm.nominal.models('c1',nside)

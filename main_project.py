@@ -9,9 +9,11 @@ import plot_project as plotpro
 import matplotlib.patches as mpatches
 import healpy as hp
 from astropy import units as u
+import pysm
 
 # l_max = 1734
-l_max = 1500
+nside = 128
+l_max = nside*4 #1500
 raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers: print(name)
@@ -45,11 +47,21 @@ if lensing == True:
         for a in angle_array:
             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
 
+foregrounds = True
+if foregrounds==True:
+    foreground_dict = lib.get_foreground_spectrum(nside, 150*u.GHz)
+    lib.spectra_addition(foreground_dict, 'dust','synchrotron')
+    spectra_dict['foregrounds'] = foreground_dict[('dust','synchrotron')]
+
+    for k in beam_array:
+        for a in angle_array:
+            lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)), 'foregrounds')
+
 # print('spectra dict keys=',spectra_dict.keys())
 angle_fisher_array = angle_array
 # print('angle_fisher_array=',angle_fisher_array)
 beam_fisher_array = beam_array
-fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, lensing)
+fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, foregrounds= foregrounds)
 
 
 fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array )
@@ -108,7 +120,7 @@ if plot_truncated_fisher_cumlulative == True:
 
 plot_cumulative_3D = 1
 if plot_cumulative_3D == True:
-    surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],(3*u.deg, (w_inv, 30. * u.arcmin)))
+    surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
     plt.show(surface)
     plt.show(heatmap)
 

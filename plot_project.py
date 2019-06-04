@@ -233,6 +233,13 @@ def cumulative_error_3D(fisher_element, key):
         else:
             ax.set_title( 'surface plot of cumulative error for rotation {}, and noise beam {}, with lensing'.format(key[0][0], key[0][1][1]) )
             ax2.set_title( 'heatmap of cumulative error for rotation {}, and noise beam {}, with lensing'.format(key[0][0], key[0][1][1]) )
+    if key[1]=='foregrounds' :
+        if key[0][1] == 'no noise':
+            ax.set_title( 'surface plot of cumulative error for rotation {}, and NO noise, with foregrounds'.format(key[0][0]) )
+            ax2.set_title( 'heatmap of cumulative error for rotation {}, and NO noise, with foregrounds'.format(key[0][0]) )
+        else:
+            ax.set_title( 'surface plot of cumulative error for rotation {}, and noise beam {}, with foregrounds'.format(key[0][0], key[0][1][1]) )
+            ax2.set_title( 'heatmap of cumulative error for rotation {}, and noise beam {}, with foregrounds'.format(key[0][0], key[0][1][1]) )
     else:
         if key[1] == 'no noise':
             ax.set_title( 'surface plot of cumulative error for rotation {}, and NO noise'.format(key[0]) )
