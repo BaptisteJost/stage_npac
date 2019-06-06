@@ -78,11 +78,14 @@ def error_on_angle_wrt_scale(fisher_element, label = None):
 
     return 0
 
-def cumulative_error(fisher_element, label = None):
-    ls = np.arange(2,len(fisher_element))
+def cumulative_error(fisher_element, label = None, l_min = 2):
+    ls = np.arange(l_min,len(fisher_element))
 
-    cumulative = np.array( [ 1 / np.sqrt( sum( fisher_element[:k]) ) for k in range(len(fisher_element)) ] )
-    plt.plot(ls, cumulative[2:], label=label)
+    cumulative = np.array( [ 1 / np.sqrt( sum( fisher_element[l_min:k]) ) for k in range(l_min,len(fisher_element)) ] )
+
+    plt.plot(ls, cumulative, label=label)
+
+
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel(r'$\ell$',fontsize = 16)
@@ -179,18 +182,24 @@ def truncated_fisher_cumulative(fisher_trunc_array_dict, key):
     for fisher_element in fisher_trunc_array_dict[key]:
         cumulative_error(fisher_element, label = label_list[count])
         count += 1
-    if key[1] == 'no noise':
+    if key[1] == 'foregrounds':
+        if key[0][1] == 'no noise':
+            plt.title( 'cumulative error for rotation {}, NO noise, and with foregrounds'.format(key[0][0]) )
+        else:
+            plt.title( 'cumulative error for rotation {}, noise beam {} and with foregrounds'.format(key[0][0], key[0][1][1]) )
+    elif key[1] == 'no noise':
         plt.title( 'cumulative error for rotation {}, and NO noise'.format(key[0]) )
     else :
         plt.title( 'cumulative error for rotation {}, and noise beam {}'.format(key[0], key[1][1]) )
     return 0
 
-def cumulative_error_3D(fisher_element, key):
+def cumulative_error_3D(fisher_element, key, l_max = None):
+    if l_max == None :
+        l_max = len(fisher_element)
+    l_min_array = np.arange(2,l_max)
+    l_max_array = np.arange(2,l_max)
 
-    l_min_array = np.arange(2,len(fisher_element))
-    l_max_array = np.arange(2,len(fisher_element))
-
-    slice_list = [ [ sum( fisher_element[l_min:l_max+1] )  for l_max in l_max_array ] for l_min in l_min_array]
+    slice_list = [ [ sum( fisher_element[_l_min:_l_max+1] )  for _l_max in l_max_array ] for _l_min in l_min_array]
     l_min_array , l_max_array = np.meshgrid(l_min_array , l_max_array, indexing = 'ij')
 
     cumulative = np.array(  1/np.sqrt(slice_list)  )
@@ -233,7 +242,7 @@ def cumulative_error_3D(fisher_element, key):
         else:
             ax.set_title( 'surface plot of cumulative error for rotation {}, and noise beam {}, with lensing'.format(key[0][0], key[0][1][1]) )
             ax2.set_title( 'heatmap of cumulative error for rotation {}, and noise beam {}, with lensing'.format(key[0][0], key[0][1][1]) )
-    if key[1]=='foregrounds' :
+    elif key[1]=='foregrounds' :
         if key[0][1] == 'no noise':
             ax.set_title( 'surface plot of cumulative error for rotation {}, and NO noise, with foregrounds'.format(key[0][0]) )
             ax2.set_title( 'heatmap of cumulative error for rotation {}, and NO noise, with foregrounds'.format(key[0][0]) )

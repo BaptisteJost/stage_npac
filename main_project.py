@@ -13,7 +13,7 @@ import pysm
 
 # l_max = 1734
 nside = 128
-l_max = nside*4 #1500
+l_max = nside*4 -1#1500
 raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers: print(name)
@@ -40,14 +40,14 @@ for k in beam_array:
     for a in angle_array:
         lib.spectra_addition(spectra_dict, a, (w_inv, k * u.arcmin))
 
-lensing = False
-if lensing == True:
-    spectra_dict['lensed_scalar'] =lib.cl_rotation( powers['lensed_scalar'] ,0.*u.deg)
-    for k in beam_array:
-        for a in angle_array:
-            lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
+# lensing = False
+# if lensing == True:
+#     spectra_dict['lensed_scalar'] =lib.cl_rotation( powers['lensed_scalar'] ,0.*u.deg)
+#     for k in beam_array:
+#         for a in angle_array:
+#             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
 
-foregrounds = True
+foregrounds = 0
 if foregrounds==True:
     foreground_dict = lib.get_foreground_spectrum(nside, 150*u.GHz)
     lib.spectra_addition(foreground_dict, 'dust','synchrotron')
@@ -57,6 +57,7 @@ if foregrounds==True:
         for a in angle_array:
             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)), 'foregrounds')
 
+# print(np.linalg.inv(spectra_dict[((0.*u.deg, (w_inv,  0.* u.arcmin)), 'foregrounds')].T[2:] ) )
 # print('spectra dict keys=',spectra_dict.keys())
 angle_fisher_array = angle_array
 # print('angle_fisher_array=',angle_fisher_array)
@@ -64,7 +65,7 @@ beam_fisher_array = beam_array
 fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, foregrounds= foregrounds)
 
 
-fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array )
+fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array , foregrounds = foregrounds)
 
 # ================================= test anisotropic angle======================
 # angle_anisotrop = np.random.normal(0,10, powers[spectrum].shape[0])
@@ -115,14 +116,30 @@ if plot_spectra == True:
 
 plot_truncated_fisher_cumlulative = 1
 if plot_truncated_fisher_cumlulative == True:
-    plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, (3*u.deg,(w_inv, 30.*u.arcmin)))
+    if foregrounds == True :
+        plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, ((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
+    else:
+        plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, (3*u.deg, (w_inv, 30. * u.arcmin)))
+
     plt.show()
 
 plot_cumulative_3D = 1
 if plot_cumulative_3D == True:
-    surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
+    if foregrounds == True:
+        surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
+    else:
+        surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],(3*u.deg, (w_inv, 30. * u.arcmin)))
+
     plt.show(surface)
     plt.show(heatmap)
+
+# foregrounds = 0
+if foregrounds == True:
+    fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds, lmin=5', l_min =5)
+    fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds, lmin=5', l_min =5)
+    fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds')
+    fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds')
+    plt.show()
 
 # ((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar')
 

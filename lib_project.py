@@ -47,6 +47,7 @@ def cl_rotation(cl, angle_in):
     cl : numpy array [number of l, number of spectra]
         Numpy array of the different power spectra in the order : TT, EE, BB, TE,
         and optionnally EB, TB
+        Takes both raw and l*(l+1)cl power spectra
     angle : float or numpy array
         angle of rotation IN RADIAN, can be isotropic is float or anisotropic if
         numpy array. In the latter case the angle is discomposed as fourier
@@ -291,6 +292,7 @@ def spectra_addition(spectra_dict, key1, key2):
 
 
 def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = False, foregrounds = False, fisher_dict = {} ):
+    # TODO: same as get_truncated_fisher_dict
     if type(angle_array[0].shape) == ():
         angle_array = [angle_array]
     if fisher_dict == {}:
@@ -316,7 +318,32 @@ def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = Fa
     return fisher_dict
 
 
-def get_truncated_fisher_dict(spectra_dict , angle_array, w_inv, beam_array, fisher_trunc_array_dict = {} ):
+def get_truncated_fisher_dict(spectra_dict , angle_array, w_inv, beam_array, foregrounds = False, fisher_trunc_array_dict = {} ):
+    """Short summary.
+
+    Parameters
+    ----------
+    spectra_dict : type
+        Description of parameter `spectra_dict`.
+    angle_array : type
+        Description of parameter `angle_array`.
+    w_inv : type
+        Description of parameter `w_inv`.
+    beam_array : type
+        Description of parameter `beam_array`.
+    foregrounds : type
+        Description of parameter `foregrounds`.
+    fisher_trunc_array_dict : type
+        Description of parameter `fisher_trunc_array_dict`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+        TODO : if fisher_trunc given diff than {} check for already created entries in dic so that not to create them twice
+               loop over keys in spectra dict to create fisher_trunc_array_dict (no need for extrea if statements)
+    """
+
     if type(angle_array[0].shape) == ():
         angle_array = [angle_array]
 
@@ -329,6 +356,12 @@ def get_truncated_fisher_dict(spectra_dict , angle_array, w_inv, beam_array, fis
         for k in beam_array :
             truncated_fisher_array, truncated_fisher_element_array = lib.truncated_fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot_noise = spectra_dict[(key_rot,(w_inv, k*u.arcmin))] , return_elements = True)
             fisher_trunc_array_dict[(key_rot,(w_inv, k*u.arcmin))] = truncated_fisher_element_array
+
+    if foregrounds == True:
+        for key_rot in angle_array:
+            for k in beam_array :
+                truncated_fisher_array, truncated_fisher_element_array = lib.truncated_fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot_noise = spectra_dict[((key_rot,(w_inv, k*u.arcmin)), 'foregrounds')] , return_elements = True)
+                fisher_trunc_array_dict[((key_rot,(w_inv, k*u.arcmin)), 'foregrounds')] = truncated_fisher_element_array
 
     return fisher_trunc_array_dict
 
@@ -368,8 +401,8 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky = 1, re
             cov_matrix_inv = 1/(cl_rot_noise_truncated_array[i].T[2:])
 
         else:
+            cov_matrix_inv = np.linalg.inv( cl_rot_noise_truncated_array[i].T[2:])
 
-            cov_matrix_inv = np.linalg.inv( cl_rot_noise_truncated_array[i].T[2:] )
         cov_matrix_inv = cov_matrix_inv.T
 
         sq_in_trace=np.array([np.dot(cov_matrix_inv.T[k], cl_da_truncated_array[i].T[k+2])\
@@ -421,8 +454,8 @@ def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_
     proper_sync_masked = hp.ma(synchrotron_signal)
     proper_sync_masked.mask = np.logical_not(mask)
 
-    cl_dust_masked = np.array([hp.anafast(proper_dust_masked, lmax = l_max + 1).T[l,:] *l*(l+1)/(2*np.pi) for l in range(l_max + 1)])
-    cl_synchrotron_masked = np.array([ hp.anafast(proper_sync_masked, lmax = l_max + 1).T[l,:] * l*(l+1)/(2*np.pi) for l in range(l_max + 1)])
+    cl_dust_masked = np.array([hp.anafast(proper_dust_masked, lmax = l_max).T[l,:] *l*(l+1)/(2*np.pi) for l in range(l_max )])
+    cl_synchrotron_masked = np.array([ hp.anafast(proper_sync_masked, lmax = l_max).T[l,:] * l*(l+1)/(2*np.pi) for l in range(l_max )])
 
     return {'dust':cl_dust_masked, 'synchrotron':cl_synchrotron_masked}
 

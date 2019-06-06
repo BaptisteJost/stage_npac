@@ -14,8 +14,10 @@ import lensquest as lq
 
 l_max = 1500
 raw_cl = False
-pars, results, powers, lens_potential_spectrum = lib.get_basics(l_max, raw_cl, lens_potential = True)
+pars, results, powers = lib.get_basics(l_max, raw_cl)#, lens_potential = True)
 for name in powers: print(name)
+
+lens_potential_spectrum = powers['lens_potential']
 
 lensed_spectrum_test =lib.cl_rotation( lib.cl_normalisation(powers['total']), 1*u.deg)
 print('lensed_spectrum_test shape',np.shape(lensed_spectrum_test))
