@@ -78,14 +78,21 @@ def error_on_angle_wrt_scale(fisher_element, label = None):
 
     return 0
 
-def cumulative_error(fisher_element, label = None, l_min = 2):
+def cumulative_error(fisher_element, label = None, l_min = 2, color = None, dotted = False):
     ls = np.arange(l_min,len(fisher_element))
 
     cumulative = np.array( [ 1 / np.sqrt( sum( fisher_element[l_min:k]) ) for k in range(l_min,len(fisher_element)) ] )
+    if color == None:
+        if dotted == False:
+            plt.plot(ls, cumulative, label=label)
+        else:
+            plt.plot(ls, cumulative, '--', label=label)
 
-    plt.plot(ls, cumulative, label=label)
-
-
+    else :
+        if dotted == False:
+            plt.plot(ls, cumulative, label=label, color = color)
+        else:
+            plt.plot(ls, cumulative, '--', label=label, color = color)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel(r'$\ell$',fontsize = 16)

@@ -440,7 +440,7 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky = 1, re
 
 def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_R2.00.fits", mask_field=2):
     nu = nu_u.to(u.GHz).value
-    l_max = nside * 4
+    l_max = nside * 3
     sky_config ={'dust': pysm.nominal.models('d0', nside), 'synchrotron': pysm.nominal.models('s0', nside)}
     sky = pysm.Sky(sky_config)
     dust_signal = sky.dust(nu)
@@ -463,24 +463,3 @@ def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_
 """""
 -------------------------------Function purgatory-------------------------------
 """""
-def foregrounds():
-    return 0
-
-def lensing(cl, lensing_spectrum):
-    return 0
-
-def get_noise_spectra_old(nl_in, raw_input = True, raw_output = False):
-    """0TT, 1EE, 2BB, 3TE, 4EB, 5TB"""
-    l = np.arange(len(nl_in))
-    if raw_input == True :
-        nl = nl_in * l * (l+1) / (2*np.pi)
-    else:
-        nl = nl_in
-
-    nl_spectra = np.array([np.array([nl[k] / 2., nl[k] , nl[k] , \
-                        nl[k]/np.sqrt(2), nl[k], nl[k]/np.sqrt(2)]) \
-                        for k in range(len(nl))])
-
-    if raw_output == True:
-        nl_spectra = cl_normalisation(nl_spectra)
-    return nl_spectra

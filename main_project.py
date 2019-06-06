@@ -12,8 +12,8 @@ from astropy import units as u
 import pysm
 
 # l_max = 1734
-nside = 128
-l_max = nside*4 -1#1500
+nside = 64
+l_max = nside*3 -1#1500
 raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers: print(name)
@@ -47,7 +47,7 @@ for k in beam_array:
 #         for a in angle_array:
 #             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
 
-foregrounds = 0
+foregrounds = 1
 if foregrounds==True:
     foreground_dict = lib.get_foreground_spectrum(nside, 150*u.GHz)
     lib.spectra_addition(foreground_dict, 'dust','synchrotron')
@@ -114,7 +114,7 @@ if plot_spectra == True:
     plotpro.spectra(spectra_dict)
     plt.show()
 
-plot_truncated_fisher_cumlulative = 1
+plot_truncated_fisher_cumlulative = 0
 if plot_truncated_fisher_cumlulative == True:
     if foregrounds == True :
         plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, ((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
@@ -123,7 +123,7 @@ if plot_truncated_fisher_cumlulative == True:
 
     plt.show()
 
-plot_cumulative_3D = 1
+plot_cumulative_3D = 0
 if plot_cumulative_3D == True:
     if foregrounds == True:
         surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
@@ -133,12 +133,19 @@ if plot_cumulative_3D == True:
     plt.show(surface)
     plt.show(heatmap)
 
-# foregrounds = 0
-if foregrounds == True:
-    fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds, lmin=5', l_min =5)
-    fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds, lmin=5', l_min =5)
-    fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds')
-    fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds')
+comp_foregrounds = 1
+if comp_foregrounds == True and foregrounds == True:
+    l_min_range=[2,10,50,100,500]
+    color = next(plt.gca()._get_lines.prop_cycler)['color']
+    fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds, lmin={}'.format(l_min_range[0]), l_min =l_min_range[0],color = color )
+
+    fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds, lmin={}'.format(l_min_range[0]), l_min =l_min_range[0], dotted = True, color = color)
+    for l in l_min_range[1:]:
+        color = next(plt.gca()._get_lines.prop_cycler)['color']
+
+        fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds, lmin={}'.format(l), l_min =l, color = color)
+        fig_cumu = plotpro.cumulative_error(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],label ='foregrounds, lmin={}'.format(l), l_min =l, color = color, dotted = True)
+    plt.title('cumulative error for rotation {}, noise beam {} and with and without foregrounds and different lmin'.format(3*u.deg, 30. * u.arcmin))
     plt.show()
 
 # ((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar')
