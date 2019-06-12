@@ -459,6 +459,33 @@ def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_
 
     return {'dust':cl_dust_masked, 'synchrotron':cl_synchrotron_masked}
 
+def likelihood(spectra_cov, spectra_data, raw_spectra = False, f_sky = 1):
+    if raw_spectra == False :
+        spectra_cov = cl_normalisation(spectra_cov)
+        spectra_data = cl_normalisation(spectra_data)
+    #TODO : covariance matrix function (put power spectra output function) 
+    cov_matrix = np.array( [ [spectra_cov[:,0] , spectra_cov[:,3] , spectra_cov[:,5]] ,\
+                             [spectra_cov[:,3] , spectra_cov[:,1] , spectra_cov[:,4]] ,\
+                             [spectra_cov[:,5] , spectra_cov[:,4] , spectra_cov[:,2]] ] )
+
+    data_matrix = np.array( [ [spectra_data[:,0] , spectra_data[:,3] , spectra_data[:,5]] ,\
+                             [spectra_data[:,3] , spectra_data[:,1] , spectra_data[:,4]] ,\
+                             [spectra_data[:,5] , spectra_data[:,4] , spectra_data[:,2]] ] )
+
+    cov_matrix_inv = np.linalg.inv(cov_matrix.T[2:]).T
+    cov_dot_data = np.array([np.dot(cov_matrix_inv[:,:,k-2], data_matrix[:,:,k]) for k in range(2,len(spectra_cov))])
+    in_trace = np.log(cov_matrix.T[2:]) + cov_dot_data
+    trace_likelihood = np.trace( in_trace, axis1=1, axis2=2 )
+    likelihood = 0
+
+    for l in range(2, len(spectra_cov)):
+        likelihood += (2*l + 1) * f_sky * trace_likelihood[l-2] /2.
+        if likelihood == np.inf:
+            #TODO : exception/error
+            break
+
+    return likelihood
+
 
 """""
 -------------------------------Function purgatory-------------------------------

@@ -12,8 +12,8 @@ from astropy import units as u
 import pysm
 
 # l_max = 1734
-nside = 64
-l_max = nside*3 -1#1500
+# nside = 64
+l_max = 1500#1500
 raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers: print(name)
@@ -21,12 +21,19 @@ for name in powers: print(name)
 spectrum = 'total' #'unlensed_total'
 unchanged_cl = powers[spectrum]
 
-angle_array = np.linspace(0.1 , 3. , 5)
-angle_array = np.insert(angle_array, 0, 0.)
+
+angle_array = np.linspace(0. ,360. , 200)
+# angle_array = np.insert(angle_array, 0, 0.)
 angle_array = angle_array * u.deg
 print('angle_array',angle_array)
 
 spectra_dict = lib.get_spectra_dict(unchanged_cl, angle_array, include_unchanged = False)
+
+unlensed_cl = powers['unlensed_total']
+# unlensed_cl = lib.cl_normalisation(powers['unlensed_total'])
+for angle in angle_array:
+    spectra_dict[('unlensed',angle)]=lib.cl_rotation(unlensed_cl, angle)
+
 # print(spectra_dict)
 beam_array = np.linspace(0,30,4)
 print('beam_array',beam_array)
@@ -39,33 +46,38 @@ for k in beam_array:
 for k in beam_array:
     for a in angle_array:
         lib.spectra_addition(spectra_dict, a, (w_inv, k * u.arcmin))
+        lib.spectra_addition(spectra_dict, ('unlensed',a), (w_inv, k * u.arcmin))
 
-# lensing = False
-# if lensing == True:
-#     spectra_dict['lensed_scalar'] =lib.cl_rotation( powers['lensed_scalar'] ,0.*u.deg)
-#     for k in beam_array:
-#         for a in angle_array:
-#             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
+
 
 foregrounds = 1
 if foregrounds==True:
-    foreground_dict = lib.get_foreground_spectrum(nside, 150*u.GHz)
-    lib.spectra_addition(foreground_dict, 'dust','synchrotron')
-    spectra_dict['foregrounds'] = foreground_dict[('dust','synchrotron')]
+    # foreground_dict = lib.get_foreground_spectrum(nside, 150*u.GHz)
+    # lib.spectra_addition(foreground_dict, 'dust','synchrotron')
+    if l_max >= 3 * 512 :
+        print('l_max >= 3*512, pysm uses nside=512 maps, foregrounds spectra of l>1500 are meaningless')
+    dust_spectra = np.load('dust_nside1024_nu150.0_maskHFI_Mask_GalPlane-apo2_2048_R2_field2.npy')
+    synchrotron_spectra = np.load('synchrotron_nside1024_nu150.0_maskHFI_Mask_GalPlane-apo2_2048_R2_field2.npy')
+
+    spectra_dict['foregrounds'] = dust_spectra[:l_max+1] + synchrotron_spectra[:l_max+1]
 
     for k in beam_array:
         for a in angle_array:
             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)), 'foregrounds')
+            lib.spectra_addition(spectra_dict, (('unlensed',a), (w_inv, k * u.arcmin)), 'foregrounds')
 
-# print(np.linalg.inv(spectra_dict[((0.*u.deg, (w_inv,  0.* u.arcmin)), 'foregrounds')].T[2:] ) )
-# print('spectra dict keys=',spectra_dict.keys())
-angle_fisher_array = angle_array
-# print('angle_fisher_array=',angle_fisher_array)
-beam_fisher_array = beam_array
-fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, foregrounds= foregrounds)
+compute_fisher = 0
+if compute_fisher == True:
+    angle_fisher_array = angle_array
+    beam_fisher_array = beam_array
+    fisher_dict = lib.get_fisher_dict( spectra_dict ,angle_fisher_array , w_inv, beam_fisher_array, foregrounds= foregrounds)
 
+compute_fisher_trunc = False
+if compute_fisher_trunc == True and compute_fisher == True:
+    fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array , foregrounds = foregrounds)
 
-fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fisher_array, w_inv, beam_fisher_array , foregrounds = foregrounds)
+for key, value in spectra_dict.items() :
+    print (key)
 
 # ================================= test anisotropic angle======================
 # angle_anisotrop = np.random.normal(0,10, powers[spectrum].shape[0])
@@ -74,7 +86,7 @@ fisher_trunc_array_dict = lib.get_truncated_fisher_dict( spectra_dict, angle_fis
 # ================================= plot =======================================
 
 plot_fisher = 0
-if plot_fisher == True :
+if plot_fisher == True and compute_fisher == True:
     # fisher, fisher_element = lib.fisher_angle(spectra_dict[0.* u.deg], 0.*u.deg , return_elements = True)
     print('fisher TRUE(?)=',1/np.sqrt(sum(fisher_dict[(3*u.deg,(w_inv,30*u.arcmin))])))
 
@@ -95,7 +107,7 @@ if plot_noise_vs_lensing_new == True :
     plt.show(fig_white_noise_vs_lensing_new)
 
 plot_fisher_noise_beam_array = 0
-if plot_fisher_noise_beam_array == True:
+if plot_fisher_noise_beam_array == True and compute_fisher == True:
     for key,value in fisher_dict.items():
         fig_uncertainty = plotpro.error_on_angle_wrt_scale(fisher_dict[key],label = '{k}'.format(k = key))
     plt.show()
@@ -115,7 +127,7 @@ if plot_spectra == True:
     plt.show()
 
 plot_truncated_fisher_cumlulative = 0
-if plot_truncated_fisher_cumlulative == True:
+if plot_truncated_fisher_cumlulative == True and compute_fisher == True and compute_fisher_trunc == True:
     if foregrounds == True :
         plotpro.truncated_fisher_cumulative(fisher_trunc_array_dict, ((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
     else:
@@ -124,7 +136,7 @@ if plot_truncated_fisher_cumlulative == True:
     plt.show()
 
 plot_cumulative_3D = 0
-if plot_cumulative_3D == True:
+if plot_cumulative_3D == True and compute_fisher == True:
     if foregrounds == True:
         surface, heatmap = plotpro.cumulative_error_3D(fisher_dict[((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds')],((3*u.deg, (w_inv, 30. * u.arcmin)),'foregrounds'))
     else:
@@ -133,8 +145,8 @@ if plot_cumulative_3D == True:
     plt.show(surface)
     plt.show(heatmap)
 
-comp_foregrounds = 1
-if comp_foregrounds == True and foregrounds == True:
+comp_foregrounds = 0
+if comp_foregrounds == True and foregrounds == True and compute_fisher == True:
     l_min_range=[2,10,50,100,500]
     color = next(plt.gca()._get_lines.prop_cycler)['color']
     fig_cumu = plotpro.cumulative_error(fisher_dict[(3*u.deg, (w_inv, 30. * u.arcmin))],label ='no foregrounds, lmin={}'.format(l_min_range[0]), l_min =l_min_range[0],color = color )
@@ -148,6 +160,59 @@ if comp_foregrounds == True and foregrounds == True:
     plt.title('cumulative error for rotation {}, noise beam {} and with and without foregrounds and different lmin'.format(3*u.deg, 30. * u.arcmin))
     plt.show()
 
+
+
+
+test_noise = lib.get_noise_spectrum(100 * (u.uK*u.uK * u.rad*u.rad), 30. * u.arcmin, l_max)
+l_norm = np.arange(l_max+1)
+test_noise = test_noise * l_norm * (l_norm+1) / (2*np.pi)
+test_spectra = spectra_dict[((('unlensed',angle), (w_inv, 30. * u.arcmin)),'foregrounds')]
+test_spectra[:,4] += test_noise
+
+test_likelihood = True
+if test_likelihood == True:
+    cov_angle = angle_array[2]
+    print('angle covariance=',cov_angle)
+    cov_key = (cov_angle, (w_inv, 30. * u.arcmin))
+
+    likelihood_no_foregrounds = []
+    likelihood_no_noise = []
+    likelihood_noise = []
+    likelihood_lens = []
+    likelihood_lens_cov = []
+    likelihood_test = []
+
+    if compute_fisher == True :
+        fisher_norm = fisher_dict[cov_key]
+    for angle in angle_array:
+        likelihood_no_noise.append( lib.likelihood(spectra_dict[ cov_key ], spectra_dict[angle] ) )
+        likelihood_no_foregrounds.append( lib.likelihood(spectra_dict[ cov_key ], spectra_dict[(angle, (w_inv, 30. * u.arcmin))] ) )
+        likelihood_noise.append(lib.likelihood(spectra_dict[ cov_key ], spectra_dict[((angle, (w_inv, 30. * u.arcmin)),'foregrounds')] ) )
+        likelihood_lens_cov.append( lib.likelihood(spectra_dict[ ((('unlensed',cov_angle), (w_inv, 30. * u.arcmin)),'foregrounds') ], spectra_dict[((('unlensed',angle), (w_inv, 30. * u.arcmin)),'foregrounds')] ) )
+        likelihood_lens.append( lib.likelihood(spectra_dict[ cov_key ], spectra_dict[((('unlensed',angle), (w_inv, 30. * u.arcmin)),'foregrounds')] ) )
+        likelihood_test.append( lib.likelihood(spectra_dict[ cov_key ], test_spectra)  )
+
+    likelihood_no_noise = likelihood_no_noise / max(likelihood_no_noise)
+    likelihood_no_foregrounds = likelihood_no_foregrounds / max(likelihood_no_foregrounds)
+    likelihood_noise = likelihood_noise / max(likelihood_noise)
+    likelihood_lens = likelihood_lens / max(likelihood_lens)
+    likelihood_lens_cov = likelihood_lens_cov / max(likelihood_lens_cov)
+    likelihood_test = likelihood_test / max(likelihood_test)
+
+
+    plt.plot(angle_array, likelihood_no_noise,'*',label='no noise')
+    plt.plot(angle_array, likelihood_no_foregrounds,label='no foregrounds')
+    plt.plot(angle_array, likelihood_noise,'--',label='all')
+    plt.plot(angle_array, likelihood_lens,':',label='unlensed')
+    plt.plot(angle_array, likelihood_lens_cov,label='unlensed_cov')
+    plt.plot(angle_array, likelihood_test,'-.',label='test')
+
+
+
+
+    plt.legend()
+    plt.show()
+    # print('likelihood=', likelihood)
 # ((3*u.deg, (w_inv, 30. * u.arcmin)) , 'lensed_scalar')
 
 
@@ -158,6 +223,13 @@ if comp_foregrounds == True and foregrounds == True:
 """"
 ---------------------------cimetery-------------------------------------
 """
+# lensing = False
+# if lensing == True:
+#     spectra_dict['lensed_scalar'] =lib.cl_rotation( powers['lensed_scalar'] ,0.*u.deg)
+#     for k in beam_array:
+#         for a in angle_array:
+#             lib.spectra_addition(spectra_dict, (a, (w_inv, k * u.arcmin)) , 'lensed_scalar' )
+
 
 # #plot the total lensed CMB power spectra versus unlensed, and fractional difference
 # plot = True
