@@ -1,12 +1,12 @@
-import sys, platform, os
-import matplotlib
+# import sys, platform, os
+# import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
-import camb
-from camb import model, initialpower
+# import camb
+# from camb import model, initialpower
 import lib_project as lib
 from mpl_toolkits.mplot3d import axes3d
-import matplotlib.patches as mpatches
+# import matplotlib.patches as mpatches
 from matplotlib import cm
 from numpy import inf
 import matplotlib.ticker as mticker
@@ -118,7 +118,10 @@ def white_noise_vs_lensing(nl_spectra, powers):
 
 
 
-def spectra(cl_dict, linear_cross = False):
+def spectra(cl_dict, linear_cross = False, linear_all = False):
+    print('linear_cross',linear_cross)
+    print('linear_all',linear_all)
+
     ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0])
     spectra_number = cl_dict[ list(cl_dict.keys())[0] ].shape[1]
     if spectra_number == 4:
@@ -143,13 +146,18 @@ def spectra(cl_dict, linear_cross = False):
         ax[1,1].plot(ls,cl_dict[key][:,3],label='{}'.format(key), color = color)
         if linear_cross == False:
             ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
+        if linear_all == False:
+            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
+
         if spectra_number==6:
             ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color)
             ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color)
-            if linear_cross == False:
+            if linear_cross == False :
                 ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
                 ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
-
+            if linear_all == False:
+                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
+                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
     for ax_ in ax.reshape(-1):
         ax_.set_xlim([2,cl_dict[ list(cl_dict.keys())[0] ].shape[0]]); \
         ax_.set_xscale('log');\
@@ -158,6 +166,10 @@ def spectra(cl_dict, linear_cross = False):
         ax_.set_ylabel(r'$C_{\ell} \frac{\ell (\ell +1)}{2 \pi}$')
     if linear_cross == True:
         for ax_ in ax.reshape(-1)[3:]:
+            ax_.set_xscale('linear')
+            ax_.set_yscale('linear')
+    if linear_all == True:
+        for ax_ in ax.reshape(-1):
             ax_.set_xscale('linear')
             ax_.set_yscale('linear')
     ax[0,0].legend( borderaxespad=0.,loc='upper left', bbox_to_anchor=(-0.2, 1.5 ))

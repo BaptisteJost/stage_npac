@@ -1,5 +1,5 @@
-import sys, platform, os
-import matplotlib
+# import sys, platform, os
+# import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
 import camb
@@ -9,6 +9,7 @@ import matplotlib.patches as mpatches
 import healpy as hp
 from astropy import units as u
 import pysm
+import copy
 
 
 def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False):
@@ -287,7 +288,7 @@ def get_spectra_dict(cl_unchanged, angle_array, include_unchanged = True):
 
 
 def spectra_addition(spectra_dict, key1, key2):
-    spectra_dict[ (key1, key2) ] = spectra_dict[key1] + spectra_dict[key2]
+    spectra_dict[ (key1, key2) ] = copy.deepcopy(spectra_dict[key1]) + copy.deepcopy(spectra_dict[key2])
     return 0
 
 
@@ -295,25 +296,27 @@ def get_fisher_dict( spectra_dict , angle_array, w_inv, beam_array, lensing = Fa
     # TODO: same as get_truncated_fisher_dict
     if type(angle_array[0].shape) == ():
         angle_array = [angle_array]
+    if type(beam_array[0].shape) == ():
+        beam_array = [beam_array]
     if fisher_dict == {}:
         for key_rot in angle_array:
-            fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot, cl_rot= spectra_dict[key_rot],  return_elements = True)
+            fisher, fisher_element = lib.fisher_angle(spectra_dict[(0*u.deg,'unlensed')], key_rot, cl_rot= spectra_dict[(key_rot,'unlensed')],  return_elements = True)
             fisher_dict[(key_rot, 'no noise')] = fisher_element
 
 
     for key_rot in angle_array:
         for k in beam_array :
-            fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot = spectra_dict[(key_rot,(w_inv, k*u.arcmin))] , return_elements = True)
+            fisher, fisher_element = lib.fisher_angle(spectra_dict[(0*u.deg,'unlensed')], key_rot , cl_rot = spectra_dict[(key_rot,(w_inv, k*u.arcmin))] , return_elements = True)
             fisher_dict[(key_rot,(w_inv, k*u.arcmin))] = fisher_element
     if lensing == True :
         for key_rot in angle_array:
             for k in beam_array :
-                fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot = spectra_dict[( (key_rot,(w_inv, k*u.arcmin)),'lensed_scalar' )] , return_elements = True)
+                fisher, fisher_element = lib.fisher_angle(spectra_dict[(0*u.deg,'unlensed')], key_rot , cl_rot = spectra_dict[(key_rot,(w_inv, k*u.arcmin))] , return_elements = True)
                 fisher_dict[((key_rot,(w_inv, k*u.arcmin)),'lensed_scalar')] = fisher_element
     if foregrounds == True :
         for key_rot in angle_array:
             for k in beam_array :
-                fisher, fisher_element = lib.fisher_angle(spectra_dict[0*u.deg], key_rot , cl_rot = spectra_dict[( (key_rot,(w_inv, k*u.arcmin)),'foregrounds' )] , return_elements = True)
+                fisher, fisher_element = lib.fisher_angle(spectra_dict[(0*u.deg,'unlensed')], key_rot , cl_rot = spectra_dict[( (key_rot,(w_inv, k*u.arcmin)),'foregrounds' )] , return_elements = True)
                 fisher_dict[((key_rot,(w_inv, k*u.arcmin)),'foregrounds')] = fisher_element
     return fisher_dict
 
@@ -460,13 +463,15 @@ def get_foreground_spectrum(nside, nu_u, mask_file="HFI_Mask_GalPlane-apo2_2048_
     return {'dust':cl_dust_masked, 'synchrotron':cl_synchrotron_masked}
 
 def likelihood(spectra_cov, spectra_data, raw_spectra = False, f_sky = 1):
+
     if raw_spectra == False :
         spectra_cov = cl_normalisation(spectra_cov)
         spectra_data = cl_normalisation(spectra_data)
-    #TODO : covariance matrix function (put power spectra output function) 
+    #TODO : covariance matrix function (put power spectra output function)
     cov_matrix = np.array( [ [spectra_cov[:,0] , spectra_cov[:,3] , spectra_cov[:,5]] ,\
                              [spectra_cov[:,3] , spectra_cov[:,1] , spectra_cov[:,4]] ,\
                              [spectra_cov[:,5] , spectra_cov[:,4] , spectra_cov[:,2]] ] )
+
 
     data_matrix = np.array( [ [spectra_data[:,0] , spectra_data[:,3] , spectra_data[:,5]] ,\
                              [spectra_data[:,3] , spectra_data[:,1] , spectra_data[:,4]] ,\
@@ -474,19 +479,63 @@ def likelihood(spectra_cov, spectra_data, raw_spectra = False, f_sky = 1):
 
     cov_matrix_inv = np.linalg.inv(cov_matrix.T[2:]).T
     cov_dot_data = np.array([np.dot(cov_matrix_inv[:,:,k-2], data_matrix[:,:,k]) for k in range(2,len(spectra_cov))])
-    in_trace = np.log(cov_matrix.T[2:]) + cov_dot_data
-    trace_likelihood = np.trace( in_trace, axis1=1, axis2=2 )
+    # in_trace = np.log(cov_matrix.T[2:]) + cov_dot_data
+    # trace_likelihood = np.trace( in_trace, axis1=1, axis2=2 )
+    in_trace = cov_dot_data
+    trace_likelihood = np.log(np.linalg.det(cov_matrix.T[2:])) + np.trace( in_trace, axis1=1, axis2=2 )
+
     likelihood = 0
 
     for l in range(2, len(spectra_cov)):
-        likelihood += (2*l + 1) * f_sky * trace_likelihood[l-2] /2.
+    # for l in range(900, 1200):
+        likelihood += (2*l + 1)*0.5 * f_sky * trace_likelihood[l-2]
         if likelihood == np.inf:
             #TODO : exception/error
+            print('likelihood = np.inf !!')
             break
 
     return likelihood
 
+def likelihood_normalisation(likelihood):
+    min_likelihood = min(likelihood)
+    # max_likelihood = max(likelihood)
+    return (likelihood - min_likelihood)#/ (max_likelihood)# - min_likelihood)
 
+
+def likelihood_sweep(dict, cov_key, data_key, angle_array):
+
+    likelihood_list = []
+    for angle in angle_array:
+        likelihood_list.append( likelihood(covariance, data[angle]) )
+    # if normalisation
+    # if logL
+    return 0
+
+
+def myindex1(lst, target):
+    for index, item in enumerate(lst):
+        if item == target:
+            return [index]
+        if isinstance(item, (list, tuple)):
+            path = myindex(item, target)
+            if path:
+                return [index] + path
+    return []
+
+def myindex(lst, target):
+    for index, item in enumerate(lst):
+        if item == target:
+            return [index]
+        if isinstance(item, str): # or 'basestring' in 2.x
+            return []
+        try:
+            path = myindex(item, target)
+        except TypeError:
+            pass
+        else:
+            if path:
+                return [index] + path
+    return []
 """""
 -------------------------------Function purgatory-------------------------------
 """""
