@@ -1,25 +1,23 @@
-# import sys, platform, os
-# import matplotlib
-from matplotlib import pyplot as plt
+
 import numpy as np
-import camb
-from camb import model, initialpower
-import lib_project as lib
-import matplotlib.patches as mpatches
 import healpy as hp
+import camb
+from camb import model
+import lib_project as lib
 from astropy import units as u
 import pysm
 import copy
 
 
-def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False):
+def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False,ratio=0.07):
     # l_max = 5000
-    pars = camb.CAMBparams(WantTensors = True, max_l_tensor = l_max)
+    pars = camb.CAMBparams(WantTensors = True, max_l_tensor = l_max,parameterization="tensor_param_indeptilt")#, tensor_parameterization=3)
     #This function sets up CosmoMC-like settings, with one massive neutrino and helium set using BBN consistency
     # pars.set_accuracy(AccuracyBoost=2)
     # pars.Accuracy.AccurateBB = True
     pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.06, omk=0, tau=0.06)
-    pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.07)
+    # camb.initialpower.InitialPowerLaw(tensor_parameterization =1)
+    pars.InitPower.set_params(As=2e-9, ns=0.965, r=ratio, parameterization="tensor_param_indeptilt")
     pars.set_for_lmax(l_max, lens_potential_accuracy=1); # !! why 1 ??
     pars.max_eta_k_tensor = l_max + 100 # if lmax=5000 max_eta_k_tensor=4981 works
                                  # too, maybe there is some improvement possible
@@ -32,11 +30,18 @@ def get_basics(l_max = 5000 , raw_cl = False, lens_potential = False):
     return pars, results, powers
 
 
-def cl_normalisation(cl):
+def cl_normalisation(cl): ## TODO: DUMB NAME VERY CONFUSING !!
     ls = np.arange(cl.shape[0])
     ls[0]=1
     cl_normalised = np.array( cl.T[:] * 2*np.pi /((ls+1)*ls ) )
     cl_normalised[:,0] = 0
+    return cl_normalised.T
+
+def get_normalised_cl(cl): ## WARNING: cl is of shape [cl,spectrum]
+    ls = np.arange(cl.shape[0])
+    # ls[0]=1
+    cl_normalised = np.array( cl.T[:] * ((ls+1)*ls ) / (2*np.pi)  )
+    # cl_normalised[:,0] = 0
     return cl_normalised.T
 
 
@@ -189,6 +194,7 @@ def fisher_angle(cl, angle, cl_rot = None, f_sky = 1, \
                              [cl_rot[:,3] , cl_rot[:,1] , cl_rot[:,4]] ,\
                              [cl_rot[:,5] , cl_rot[:,4] , cl_rot[:,2]] ] )
 
+
     cov_matrix_inv = np.linalg.inv(cov_matrix.T[2:])
     cov_matrix_inv = cov_matrix_inv.T
 
@@ -213,6 +219,7 @@ def fisher_angle(cl, angle, cl_rot = None, f_sky = 1, \
 
 
 def cl_to_map(cl,nside, raw_cl = False):
+    ## TODO: seems fishy, triple check
     if raw_cl == False :
         cl = cl_normalisation(cl).T
     else :
@@ -507,8 +514,7 @@ def likelihood_sweep(dict, cov_key, data_key, angle_array):
     likelihood_list = []
     for angle in angle_array:
         likelihood_list.append( likelihood(covariance, data[angle]) )
-    # if normalisation
-    # if logL
+
     return 0
 
 
@@ -536,6 +542,8 @@ def myindex(lst, target):
             if path:
                 return [index] + path
     return []
+
+
 """""
 -------------------------------Function purgatory-------------------------------
 """""

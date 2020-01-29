@@ -1,16 +1,12 @@
-# import sys, platform, os
-# import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
-# import camb
-# from camb import model, initialpower
 import lib_project as lib
 from mpl_toolkits.mplot3d import axes3d
-# import matplotlib.patches as mpatches
 from matplotlib import cm
 from numpy import inf
 import matplotlib.ticker as mticker
-
+from cycler import cycler
+import matplotlib as mpl
 
 def cl_comparison(cl_unchanged, cl_rot, angle):
 
@@ -79,9 +75,10 @@ def error_on_angle_wrt_scale(fisher_element, label = None):
     return 0
 
 def cumulative_error(fisher_element, label = None, l_min = 2, color = None, dotted = False):
-    ls = np.arange(l_min,len(fisher_element))
+    ls = np.arange(l_min,len(fisher_element)+2)
 
-    cumulative = np.array( [ 1 / np.sqrt( sum( fisher_element[l_min:k]) ) for k in range(l_min,len(fisher_element)) ] )
+    cumulative = np.array( [ 1 / np.sqrt( sum( fisher_element[l_min:k]) ) for k in range(l_min,len(fisher_element)+2) ] )
+
     if color == None:
         if dotted == False:
             plt.plot(ls, cumulative, label=label)
@@ -118,12 +115,22 @@ def white_noise_vs_lensing(nl_spectra, powers):
 
 
 
-def spectra(cl_dict, linear_cross = False, linear_all = False):
+def spectra(cl_dict, linear_cross = False, linear_all = False, lw_list = 1.5):
+
+    if type(lw_list) == float:
+        print('In spectra() default linewidtth has be chosen')
+        lw_list = [lw_list] * len(cl_dict)
     print('linear_cross',linear_cross)
     print('linear_all',linear_all)
 
-    ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0])
+    if 1-isinstance(cl_dict,dict):
+        print("WARNING: in spectra() cl_dict is not a dictionnary")
+        cl_dict={'WARRNING:one_spectrum':cl_dict}
+
+    ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0]) # TODO: maybe take min of all entry if not all spectra have same ell max
+    # print('ls',ls)
     spectra_number = cl_dict[ list(cl_dict.keys())[0] ].shape[1]
+    first_key = list(cl_dict.keys())[0] # TODO: ugly
     if spectra_number == 4:
         fig, ax = plt.subplots(2,2, figsize = (12,12))
 
@@ -138,26 +145,38 @@ def spectra(cl_dict, linear_cross = False, linear_all = False):
         ax[2,0].set_title(r'$EB$');
         ax[2,1].set_title(r'$TB$');
 
+    spectrum_counter = 0
     for key,value in cl_dict.items():
+        print('SPECTRUM COUNTER=',spectrum_counter)
+        print('LW LIST=',lw_list[spectrum_counter])
         color = next(ax[1,1]._get_lines.prop_cycler)['color']
-        ax[0,0].plot(ls,cl_dict[key][:,0],label='{}'.format(key), color = color)
-        ax[0,1].plot(ls,cl_dict[key][:,1],label='{}'.format(key), color = color)
-        ax[1,0].plot(ls,cl_dict[key][:,2],label='{}'.format(key), color = color)
-        ax[1,1].plot(ls,cl_dict[key][:,3],label='{}'.format(key), color = color)
-        if linear_cross == False:
-            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
-        if linear_all == False:
-            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color)
+        specific_spectra_number = cl_dict[key].shape[1]
 
-        if spectra_number==6:
-            ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color)
-            ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color)
+        ax[0,0].plot(ls,cl_dict[key][:,0],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
+        ax[0,1].plot(ls,cl_dict[key][:,1],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
+        ax[1,0].plot(ls,cl_dict[key][:,2],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
+        ax[1,1].plot(ls,cl_dict[key][:,3],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
+        if linear_cross == False:
+            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color, lw = lw_list[spectrum_counter])
+        if linear_all == False:
+            ax[0,0].plot(ls,-cl_dict[key][:,0], '--', color = color, lw = lw_list[spectrum_counter])
+            ax[0,1].plot(ls,-cl_dict[key][:,1], '--', color = color, lw = lw_list[spectrum_counter])
+            ax[1,0].plot(ls,-cl_dict[key][:,2], '--', color = color, lw = lw_list[spectrum_counter])
+            ax[1,1].plot(ls,-cl_dict[key][:,3], '--', color = color, lw = lw_list[spectrum_counter])
+
+        # if spectra_number==6:
+        if specific_spectra_number == 6:
+            ax[2,0].plot(ls,cl_dict[key][:,4],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
+            ax[2,1].plot(ls,cl_dict[key][:,5],label='{}'.format(key), color = color, lw = lw_list[spectrum_counter])
             if linear_cross == False :
-                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
-                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
+                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color, lw = lw_list[spectrum_counter])
+                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color, lw = lw_list[spectrum_counter])
             if linear_all == False:
-                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color)
-                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color)
+                ax[2,0].plot(ls,-cl_dict[key][:,4], '--', color = color, lw = lw_list[spectrum_counter])
+                ax[2,1].plot(ls,-cl_dict[key][:,5], '--', color = color, lw = lw_list[spectrum_counter])
+        if specific_spectra_number != spectra_number:
+            print(' WARNING: in spectra() \"{}\" doesn t have the same spectra number as \"{}\"'.format(key, first_key))
+        spectrum_counter +=1
     for ax_ in ax.reshape(-1):
         ax_.set_xlim([2,cl_dict[ list(cl_dict.keys())[0] ].shape[0]]); \
         ax_.set_xscale('log');\
@@ -280,3 +299,38 @@ def cumulative_error_3D(fisher_element, key, l_max = None):
 
 def log_tick_formatter(val, pos=None):
     return "{:.2e}".format(10**val)
+
+
+def one_spectrum(cl_dict, spectrum_name, ax,linear_cross = False, linear_all = False):
+    plotting_spectrum_dict= {'TT':0 , 'EE':1, 'BB':2, 'TE':3, 'EB':4,'TB':5}
+    print('linear_cross',linear_cross)
+    print('linear_all',linear_all)
+
+    ls = np.arange(cl_dict[ list(cl_dict.keys())[0] ].shape[0])
+    print('ls',ls )
+    spectra_number = cl_dict[ list(cl_dict.keys())[0] ].shape[1]
+
+    colors = plt.cm.YlOrBr_r(np.linspace(0,1,len(cl_dict)))
+
+
+    plt.gca().set_prop_cycle(cycler('color', colors))
+
+    for key,value in cl_dict.items():
+        ax.plot(ls,cl_dict[key][:,plotting_spectrum_dict[spectrum_name]],linewidth=2.0)#,label='{}'.format(key)) #'{}'.format(key)
+
+    # ax.set_xlim([2,cl_dict[ list(cl_dict.keys())[0] ].shape[0]])
+
+
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    # ax.xlabel(r'$\ell$', fontsize= 14)
+    # ax.ylabel(r'$ \frac{\ell (\ell +1)}{2 \pi} C_{\ell} \quad (\mu K^{2})$',fontsize= 14)
+
+    colors = plt.cm.YlOrBr_r(np.linspace(0,1,len(cl_dict)))
+    norm = mpl.colors.Normalize(vmin = 0, vmax = 1) # (vmin=list(cl_dict.keys())[0], vmax=list(cl_dict.keys())[-1])
+    cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.YlOrBr_r)
+    cmap.set_array([])
+    cbar = plt.colorbar(cmap)
+    cbar.set_label('rotation angle in degrees',fontsize= 20)
+    return 0
