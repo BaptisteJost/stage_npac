@@ -11,7 +11,7 @@ import copy
 
 # l_max = 1734
 # nside = 64
-l_max = 1500
+l_max = 300  # 1500
 raw_cl = False
 pars, results, powers = lib.get_basics(l_max, raw_cl)
 for name in powers:
@@ -117,7 +117,16 @@ if compute_fisher:
     fisher_dict = lib.get_fisher_dict(
         spectra_dict, angle_fisher_array, w_inv, beam_fisher_array,
         foregrounds=foregrounds)
+    # fisher_dict = lib.get_fisher_dict(
+    #     {(0*u.deg, 'unlensed'): spectra_dict[(0*u.deg, 'unlensed')]},
+    #     np.array([0]),    w_inv, beam_fisher_array,
+    #     foregrounds=foregrounds)
+    print('shape fisher = ', np.shape(fisher_dict[(0*u.deg, 'no noise')]))
+    print('FISHER=', fisher_dict[(0*u.deg, 'no noise')])
+    print('fisher sum = ', sum(fisher_dict[(0*u.deg, 'no noise')])*0.1)
+    print('sigma = ', 1/np.sqrt(0.1*sum(fisher_dict[(0*u.deg, 'no noise')])))
 
+    exit()
 compute_fisher_trunc = 0
 if compute_fisher_trunc and compute_fisher:
     fisher_trunc_array_dict = lib.get_truncated_fisher_dict(
@@ -184,8 +193,7 @@ if plot_spectra:
     plt.show()
 
 plot_truncated_fisher_cumlulative = 0
-if plot_truncated_fisher_cumlulative and compute_fisher and \
-        compute_fisher_trunc:
+if plot_truncated_fisher_cumlulative and compute_fisher and compute_fisher_trunc:
     if foregrounds:
         plotpro.truncated_fisher_cumulative(
             fisher_trunc_array_dict, ((3*u.deg, (w_inv, 30. * u.arcmin)),
@@ -237,8 +245,8 @@ if comp_foregrounds and foregrounds and compute_fisher:
             dotted=True)
     plt.title(
         'cumulative error for rotation {}, noise beam {}'.format(
-            3*u.deg, 30. * u.arcmin)),\
-        'and with and without foregrounds and different lmin'
+            3*u.deg, 30. * u.arcmin)),
+    'and with and without foregrounds and different lmin'
     plt.show()
 
 

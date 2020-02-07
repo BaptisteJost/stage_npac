@@ -159,8 +159,8 @@ def spectra(cl_dict, linear_cross=False, linear_all=False, lw_list=1.5):
 
     spectrum_counter = 0
     for key, value in cl_dict.items():
-        print('SPECTRUM COUNTER=', spectrum_counter)
-        print('LW LIST=', lw_list[spectrum_counter])
+        # print('SPECTRUM COUNTER=', spectrum_counter)
+        # print('LW LIST=', lw_list[spectrum_counter])
         color = next(ax[1, 1]._get_lines.prop_cycler)['color']
         specific_spectra_number = cl_dict[key].shape[1]
 

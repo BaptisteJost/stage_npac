@@ -6,6 +6,9 @@ import lib_project as lib
 from astropy import units as u
 import pysm
 import copy
+from fgbuster import MixingMatrix
+from fgbuster.component_model import CMB, Dust, Synchrotron
+import V3calc as V3
 
 
 def get_basics(l_max=5000, raw_cl=False, lens_potential=False, ratio=0.07):
@@ -164,7 +167,7 @@ def fisher_angle(cl, angle, cl_rot=None, f_sky=1,
         and optionnally EB, TB
     angle : float or numpy array [number of l]
         angle of rotation, can be isotropic is float or anisotropic if numpy
-        array. In the latter case the angle is discomposed as fourier transmorm
+        array. In the latter case the angle is decomposed as fourier transmorm
         on the sphere 'l', and the length of the array should be the same as
         the length of a given cl element (eg the EE spectrum)
     cl_rot : numpy array [number of l, number of spectra]
@@ -450,6 +453,9 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
                            raw_cl_rot=False):
     if raw_cl is False:
         cl_orig = cl_normalisation(cl_orig_for_deriv)
+    else:
+        cl_orig = cl_orig_for_deriv
+
     if raw_cl_rot is False:
         cl_rot_noise = cl_normalisation(cl_rot_noise)
 
@@ -458,7 +464,13 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
     cl_rot_noise_truncated_array = \
         get_truncated_covariance_matrix(cl_rot_noise)
 
+    print('SHAPE cl_rot_noise_truncated_array', np.shape(cl_rot_noise_truncated_array[4]))
+
     cl_da_truncated_array = get_truncated_covariance_matrix(cl_da)
+    print('COVARIANCE MATRIX =', np.shape(cl_rot_noise_truncated_array[4]))
+    print(cl_rot_noise_truncated_array[4].T[25:35])
+    print('DERIVATIV MATRIX =', np.shape(cl_da_truncated_array[4]))
+    print(cl_da_truncated_array[4].T[25:35])
 
     truncated_fisher_list = []
     truncated_fisher_element_list = []
@@ -467,24 +479,35 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
 
         if np.shape(np.shape(cl_rot_noise_truncated_array[i].T[2:]))[0] == 1:
             cov_matrix_inv = 1/(cl_rot_noise_truncated_array[i].T[2:])
-
+            print('PAS LA')
         else:
-            cov_matrix_inv = \
-                np.linalg.inv(cl_rot_noise_truncated_array[i].T[2:])
-
+            cov_matrix_inv = np.linalg.inv(cl_rot_noise_truncated_array[i].T[2:])
+            print('CA VIENT DE LA')
+        if i == 4:
+            print('shape cov-1 = ', np.shape(cov_matrix_inv))
+            print('COVARIANCE MATRIX-1 =',  cov_matrix_inv[25:35])
         cov_matrix_inv = cov_matrix_inv.T
 
         sq_in_trace = np.array([np.dot(cov_matrix_inv.T[k],
                                        cl_da_truncated_array[i].T[k+2])
                                 for k in range(cl_orig.shape[0]-2)])
+        if i == 4:
+            print('shape sq_in_trace = ', np.shape(sq_in_trace))
+            print('sq_in_trace =',  sq_in_trace[25:35])
 
         in_trace = np.array([np.dot(sq_in_trace[k], sq_in_trace[k])
                              for k in range(sq_in_trace.shape[0])])
+        if i == 4:
+            print('shape in_trace = ', np.shape(in_trace))
+            print('in_trace =',  in_trace[25:35])
 
         if np.shape(np.shape(cl_rot_noise_truncated_array[i].T[2:]))[0] == 1:
             trace_fisher = in_trace
         else:
             trace_fisher = np.trace(in_trace, axis1=1, axis2=2)
+            if i == 4:
+                print('SHAPE TRACE FISHER=', np.shape(trace_fisher))
+                print('TRACE FISHER=', trace_fisher[25:35])
 
         fisher_element = [0., 0.]
 
@@ -492,13 +515,15 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
         for l in range(2, len(cl_orig)):
             fisher += (2*l + 1) * 0.5 * f_sky * trace_fisher[l-2]
             fisher_element.append((2*l + 1) * 0.5 * f_sky * trace_fisher[l-2])
+        if i == 4:
+            print('shape fisher_element = ', np.shape(fisher_element))
+            print('fisher_element =',  fisher_element[25:35])
         fisher_element = np.array(fisher_element)
         truncated_fisher_list.append(fisher)
         truncated_fisher_element_list.append(fisher_element)
 
-    total_fisher, total_fisher_element = \
-        fisher_angle(cl_orig, angle, cl_rot=cl_rot_noise, f_sky=1,
-                     return_elements=True, raw_cl=True, raw_cl_rot=True)
+    total_fisher, total_fisher_element = fisher_angle(cl_orig, angle, cl_rot=cl_rot_noise, f_sky=f_sky,
+                                                      return_elements=True, raw_cl=True, raw_cl_rot=True)
     truncated_fisher_list.append(total_fisher)
     truncated_fisher_element_list.append(total_fisher_element)
 
@@ -621,6 +646,20 @@ def myindex(lst, target):
             if path:
                 return [index] + path
     return []
+
+
+def get_cl_noise(nl):
+    nl_inv = 1/nl
+    frequencies = V3.so_V3_SA_bands()
+    components = [CMB(), Dust(150.), Synchrotron(20.)]
+    A = MixingMatrix(*components)
+    A_ev = A.evaluator(frequencies)
+    res = [1.59, 20, -3]
+    A_ = A_ev(res)
+    AtNA = np.einsum('fi, fl, fj -> lij', A_, nl_inv, A_)
+    inv_AtNA = np.linalg.inv(AtNA)
+
+    return inv_AtNA.swapaxes(-3, -1)
 
 
 """""
