@@ -84,10 +84,10 @@ def error_on_angle_wrt_scale(fisher_element, label=None):
 
 def cumulative_error(fisher_element, label=None, l_min=2, color=None,
                      dotted=False):
-    ls = np.arange(l_min, len(fisher_element)+2)
+    ls = np.arange(l_min, len(fisher_element))  # 2)
 
     cumulative = np.array([1 / np.sqrt(sum(fisher_element[l_min:k]))
-                           for k in range(l_min, len(fisher_element)+2)])
+                           for k in range(l_min, len(fisher_element))])  # 2)])
 
     if color is None:
         if dotted is False:
@@ -131,8 +131,10 @@ def spectra(cl_dict, linear_cross=False, linear_all=False, lw_list=1.5):
     if type(lw_list) == float:
         print('In spectra() default linewidtth has be chosen')
         lw_list = [lw_list] * len(cl_dict)
-    print('linear_cross', linear_cross)
-    print('linear_all', linear_all)
+    if linear_all:
+        print('WARNING: linear_all =', linear_all)
+    if linear_cross:
+        print('WARNING: linear_cross =', linear_cross)
 
     if 1-isinstance(cl_dict, dict):
         print("WARNING: in spectra() cl_dict is not a dictionnary")
@@ -140,7 +142,6 @@ def spectra(cl_dict, linear_cross=False, linear_all=False, lw_list=1.5):
 
     # TODO: maybe take min of all entry if not all spectra have same ell max
     ls = np.arange(cl_dict[list(cl_dict.keys())[0]].shape[0])
-    # print('ls',ls)
     spectra_number = cl_dict[list(cl_dict.keys())[0]].shape[1]
     first_key = list(cl_dict.keys())[0]  # TODO: ugly
     if spectra_number == 4:
@@ -159,8 +160,7 @@ def spectra(cl_dict, linear_cross=False, linear_all=False, lw_list=1.5):
 
     spectrum_counter = 0
     for key, value in cl_dict.items():
-        # print('SPECTRUM COUNTER=', spectrum_counter)
-        # print('LW LIST=', lw_list[spectrum_counter])
+
         color = next(ax[1, 1]._get_lines.prop_cycler)['color']
         specific_spectra_number = cl_dict[key].shape[1]
 
