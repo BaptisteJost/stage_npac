@@ -54,6 +54,7 @@ for i in [0, 1, 2]:
 
             # else:
             #     print('Not a telescope')
+            # breakpoint()
             noise_cl = lib.get_cl_noise(noise_nl)[0, 0]
             SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
     if LAT:
@@ -154,15 +155,21 @@ sigma_element_BB = {'no noise': 1/np.sqrt(fisher_element_dict['no noise'][2])}
 
 
 for key in SAT_noise_dict:
-    fisher_sum_EB = sum(fisher_element_dict[key][4][l_min_SAT:])
+    if len(key) == 2:
+        fisher_sum_EB = sum(fisher_element_dict[key][4][l_min_SAT_:l_max_SAT_])
+        fisher_sum_EE = sum(fisher_element_dict[key][1][l_min_SAT_:l_max_SAT_])
+        fisher_sum_BB = sum(fisher_element_dict[key][2][l_min_SAT_:l_max_SAT_])
+    else:
+        fisher_sum_EB = sum(fisher_element_dict[key][4][l_min_SAT:])
+        fisher_sum_EE = sum(fisher_element_dict[key][1][l_min_SAT:])
+        fisher_sum_BB = sum(fisher_element_dict[key][2][l_min_SAT:])
+
     sigma_dict_EB[key] = 1/np.sqrt(fisher_sum_EB)
     sigma_element_EB[key] = 1/np.sqrt(fisher_element_dict[key][4])
 
-    fisher_sum_EE = sum(fisher_element_dict[key][1][l_min_SAT:])
     sigma_dict_EE[key] = 1/np.sqrt(fisher_sum_EE)
     sigma_element_EE[key] = 1/np.sqrt(fisher_element_dict[key][1])
 
-    fisher_sum_BB = sum(fisher_element_dict[key][2][l_min_SAT:])
     sigma_dict_BB[key] = 1/np.sqrt(fisher_sum_BB)
     sigma_element_BB[key] = 1/np.sqrt(fisher_element_dict[key][2])
 
@@ -205,7 +212,7 @@ for key in fisher_element_dict:
         plotpro.cumulative_error(fisher_element_dict[key][4][:l_max_SAT_],
                                  label='sensitivity mode :'+key[0] +
                                  ' and 1/f :' + key[1],
-                                 l_min=l_min_SAT_+200, dotted=True,
+                                 l_min=l_min_SAT_, dotted=True,
                                  color=color)
         SAT_counter += 1
     elif key == 'no noise':
@@ -245,7 +252,7 @@ plt.grid(b=True, linestyle=':')
 plt.show()
 print('handles', handles)
 print('labels', labels)
-exit()
+
 
 fig, ax = plt.subplots(2, 2, figsize=(12, 12))
 ax[0, 0].set_title(r'$EE$')
@@ -281,6 +288,7 @@ if SAT:
     sigma_df = sigma_df.rename_axis('one_over_f_mode', axis='index')
     print('\n sigma_df = ')
     print(sigma_df, '\n')
+    print(sigma_df.to_latex())
 
 if LAT:
     sensitivity_mode = ['threshold', 'baseline', 'goal']

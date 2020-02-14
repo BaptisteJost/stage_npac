@@ -649,6 +649,58 @@ def get_cl_noise(nl, telescope='SAT'):
     return inv_AtNA.swapaxes(-3, -1)
 
 
+def map_rotation(map, rotation_angle):
+    """Rotates the Q,U maps given a certain angle. Handles multiple frequecies
+    and frequency dependent rotation angle.
+    Parameters
+    ----------
+    map : numpy array, [frequency, I/Q/U, pixels] OR [I/Q/U, pixels]
+        sky map typically given by fgbuster/pysm. Contains temperature and
+        polarisation maps. Can contain frequency maps also (optionnal)
+    rotation_angle : float or numpy array
+        Angle by which to rotate the map. Might be an array with same length as
+        number of frequencies if frequency dependent rotation.
+
+    Returns
+    -------
+    numpy array
+        new map array of same shape as argument but with now mixed Q & U
+        component according to the rotation.
+
+    """
+    len_map = len(np.shape(map))
+    frequency_dependent = isinstance(rotation_angle, np.ndarray)
+
+    if 1-frequency_dependent:  # & len_map == 3:  # TODO: why ?
+
+        rotation_angle = np.ones(len(map[:, 0, 0])) * rotation_angle
+    if len_map == 3:
+
+        map_rotated = np.empty(np.shape(map))
+
+        for i in range(len(map[:, 0, 0])):
+            Qrot = np.cos(2*rotation_angle[i])*map[i, 1, :] + \
+                np.sin(2 * rotation_angle[i])*map[i, 2, :]
+            Urot = - np.sin(2*rotation_angle[i])*map[i, 1, :] + \
+                np.cos(2 * rotation_angle[i])*map[i, 2, :]
+            map_rotated[i, 0] = map[i, 0]
+            map_rotated[i, 1] = Qrot
+            map_rotated[i, 2] = Urot
+
+    else:
+        print('squalala')
+        map_rotated = np.empty((3))
+        Qrot = np.cos(2*rotation_angle)*map[1, :] - \
+            np.sin(2 * rotation_angle)*map[2, :]
+        Urot = np.sin(2*rotation_angle)*map[1, :] + \
+            np.cos(2 * rotation_angle)*map[2, :]
+        map_rotated[0] = map[i, 0]
+        map_rotated[1] = Qrot
+        map_rotated[2] = Urot
+
+    return map_rotated
+
+
 """""
 ----------------------------Function purgatory-------------------------------
 """""
