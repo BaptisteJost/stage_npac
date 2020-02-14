@@ -7,8 +7,13 @@ import V3calc as V3
 from pandas import DataFrame as df
 import pandas as pd
 import copy
+from matplotlib.cm import get_cmap
+import matplotlib.text as mtext
+import matplotlib
 
-pars, results, powers = lib.get_basics(l_max=10000, raw_cl=True, ratio=0.00)
+r = 0.0
+
+pars, results, powers = lib.get_basics(l_max=10000, raw_cl=True, ratio=r)
 
 b_angle = 0.0 * u.deg
 SAT = 1
@@ -17,6 +22,7 @@ if SAT:
     l_max_SAT = 300
     l_max_SAT_ = 300
     l_min_SAT = 30
+    l_min_SAT_ = 30
 
     SAT_pure_ps = powers['total'][:l_max_SAT]
 
@@ -174,20 +180,72 @@ plt.xlabel('ell')
 plt.ylabel('1/sqrt(fisher_ell)')
 plt.show()
 
-for key in fisher_element_dict:
-    print('KEY = ', key)
-    if len(key) == 2:
-        print('KEY 2')
-        plotpro.cumulative_error(fisher_element_dict[key][4][:l_max_SAT_],
-                                 label=key, l_min=l_min_SAT)
-    else:
-        print('KEY ELSE')
-        plotpro.cumulative_error(fisher_element_dict[key][4],
-                                 label=key, l_min=l_min_SAT)
-plt.title('cumulative error on alpha={} with {} model noises'.format(
-    b_angle, telescope))
-plt.show()
+SAT_map = get_cmap('autumn')
+LAT_map = get_cmap('viridis')
+SAT_counter = 0
+LAT_counter = 0
 
+
+class LegendTitle(object):
+    def __init__(self, text_props=None):
+        self.text_props = text_props or {}
+        super(LegendTitle, self).__init__()
+
+    def legend_artist(self, legend, orig_handle, fontsize, handlebox):
+        x0, y0 = handlebox.xdescent, handlebox.ydescent
+        title = mtext.Text(
+            x0, y0,  orig_handle, usetex=False, **self.text_props)
+        handlebox.add_artist(title)
+        return title
+
+
+for key in fisher_element_dict:
+    if len(key) == 2:
+        color = SAT_map(SAT_counter/10)
+        plotpro.cumulative_error(fisher_element_dict[key][4][:l_max_SAT_],
+                                 label='sensitivity mode :'+key[0] +
+                                 ' and 1/f :' + key[1],
+                                 l_min=l_min_SAT_+200, dotted=True,
+                                 color=color)
+        SAT_counter += 1
+    elif key == 'no noise':
+        plotpro.cumulative_error(fisher_element_dict[key][4],
+                                 label=key, l_min=l_min_SAT_, color='black')
+    else:
+        color = LAT_map(1/2+1/6*LAT_counter)
+        plotpro.cumulative_error(fisher_element_dict[key][4],
+                                 label='sensitivity mode :'+key[0],
+                                 l_min=l_min_SAT, color=color)
+        LAT_counter += 1
+
+plt.title(r'Cumulative error on $ \alpha = $ {}$^\circ $ with SAT and LAT, and $ r = ${}'.
+          format(b_angle.value, r))
+handles, labels = plt.gca().get_legend_handles_labels()
+order = [0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 4, 8, 12]
+print([labels[idx] for idx in order])
+new_handles = [handles[idx] for idx in order]
+new_handles.insert(1, 'SAT')
+new_handles.insert(11, 'LAT')
+print('new_handles', new_handles)
+new_labels = [labels[idx] for idx in order]
+new_labels.insert(1, '')
+new_labels.insert(11, '')
+print('new_labels', new_labels)
+
+# new_handles.append('Title 1')
+# new_labels.append('')
+# plt.legend()
+# print(plt.legend.get_legend_handler_map)
+print('')
+print('HANDLER MAP=',
+      matplotlib.legend.Legend.get_legend_handler_map(plt.legend()))
+plt.legend(new_handles, new_labels,
+           handler_map={str: LegendTitle({'fontsize': 11})})
+plt.grid(b=True, linestyle=':')
+plt.show()
+print('handles', handles)
+print('labels', labels)
+exit()
 
 fig, ax = plt.subplots(2, 2, figsize=(12, 12))
 ax[0, 0].set_title(r'$EE$')
@@ -240,7 +298,7 @@ if LAT:
 
 fisher_element_dict_T = {}
 for key in fisher_element_dict:
-    fisher_element_dict_T[key] = fisher_element_dict[key][:-1].T
+    fisher_element_dict_T[key] = fisher_element_dict[key][: -1].T
 
 
 plotpro.spectra(fisher_element_dict_T)

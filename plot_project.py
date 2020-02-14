@@ -105,7 +105,7 @@ def cumulative_error(fisher_element, label=None, l_min=2, color=None,
     plt.xlabel(r'$\ell$', fontsize=16)
     plt.ylabel(r'$ \frac{1}{\sqrt{ \sum_{\ell_{min} = 2}^{\ell}{F_{\ell}}}} $',
                fontsize=16)
-    plt.legend()
+    # plt.legend()
     return 0
 
 
