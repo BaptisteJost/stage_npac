@@ -11,6 +11,9 @@ import lib_project as lib
 # from matplotlib.cm import get_cmap
 # import matplotlib.text as mtext
 # import matplotlib
+from fgbuster import MixingMatrix
+from fgbuster.component_model import CMB, Dust, Synchrotron
+from scipy.linalg import block_diag
 from fgbuster.observation_helpers import get_sky
 import pysm
 import V3calc as V3
@@ -71,7 +74,7 @@ class sky_map:
     #     self.fg_freq_maps = fg_freq_maps
     #     if output:
     #         return cmb_freq_maps, fg_freq_maps
-
+    #
     def get_freq_maps(self, output=0):
         cmb_freq_maps = self.sky.cmb(sky_map.cmb_freq) * \
             pysm.convert_units('K_RJ', 'K_CMB', sky_map.cmb_freq)
@@ -92,22 +95,138 @@ class sky_map:
             return cmb_freq_rot
 
     def faraday_rotation(self, output=0):
+
         cmb_map_array = np.array([self.cmb_freq_maps/len(self.frequencies) for
                                   i in range(len(self.frequencies))])
-        cmb_faraday = np.sum(lib.map_rotation(cmb_map_array,
-                                              self.bir_angle), 0)
-        self.cmb_faraday = cmb_faraday
-        if output:
-            return cmb_faraday
+        try:
+            cmb_faraday = np.sum(lib.map_rotation(cmb_map_array,
+                                                  self.bir_angle), 0)
+            self.cmb_faraday = cmb_faraday
+            if output:
+                return cmb_faraday
+        except TypeError:
+            print('In faraday rotation, only one angle given. \n \
+                   Faraday rotation impossible, try self.cmb_rotation()')
 
     def get_signal(self, output=0):
-        try:
-            signal = self.cmb_freq_rot + self.fg_freq_maps
-        except AttributeError:
-            signal = self.cmb_freq_maps + self.fg_freq_maps
+        if self.instrument == 'LAT':
+            start_spectra = 0
+        else:
+            start_spectra = 1
+
+        if hasattr(self, 'cmb_freq_rot'):
+            signal_ = np.append(self.cmb_freq_rot[start_spectra:],
+                                self.dust_freq_maps[start_spectra:], 0)
+            signal = np.append(signal_, self.sync_freq_maps[start_spectra:], 0)
+            del signal_
+            # signal = self.cmb_freq_rot + self.dust_freq_maps + \
+            # self.sync_freq_maps
+            print('Signal with cmb rotation')
+
+        elif hasattr(self, 'cmb_faraday'):
+            signal_ = np.append(self.cmb_faraday[start_spectra:],
+                                self.dust_freq_maps[start_spectra:], 0)
+            signal = np.append(signal_, self.sync_freq_maps[start_spectra:], 0)
+            del signal_
+            print('Signal with Faraday rotation')
+
+        else:
+            signal_ = np.append(self.cmb_freq_maps[start_spectra:],
+                                self.dust_freq_maps[start_spectra:], 0)
+            signal = np.append(signal_, self.sync_freq_maps[start_spectra:], 0)
+            print('Signal with no rotation')
+
         self.signal = signal
         if output:
             return signal
+
+    def get_mixing_matrix(self):
+
+        components = [CMB(), Dust(sky_map.dust_freq),
+                      Synchrotron(sky_map.synchrotron_freq)]
+        A = MixingMatrix(*components)
+        A_ev = A.evaluator(self.frequencies)
+        res = [1.59, 20, -3]
+        A_ = A_ev(res)
+        self.A_ = A_
+
+        if self.instrument == 'SAT':
+            mixing_matrix = np.repeat(A_, 2, 0)
+        if self.instrument == 'LAT':
+            print('Error: LAT in mixing matrix')
+            # TODO: get LAT mixing matrix, because of T the second repetetion
+            # should be changed ...
+            # mixing_matrix = np.repeat(A_, 3, 0)
+            # print(' WARNING: LAT has same T mixing matrix as Q & U')
+
+        mixing_matrix = np.repeat(mixing_matrix, 2, 1)
+
+        for i in range(np.shape(mixing_matrix)[0]):
+            for j in range(np.shape(mixing_matrix)[1]):
+                mixing_matrix[i, j] = mixing_matrix[i, j] *\
+                    (((i % 2)-(1-j % 2)) % 2)
+
+        self.mixing_matrix = mixing_matrix
+
+    def get_miscalibration_angle_matrix(self):
+        miscal_matrix = 1
+
+        miscal_angles = [0, np.pi/4, np.pi/8] * u.rad
+        frequencies_by_instrument = [2, 2, 2]
+        try:
+            if len(miscal_angles) != len(frequencies_by_instrument) or \
+                    sum(frequencies_by_instrument) != len(self.frequencies):
+                print('WARNING: miscalibration angles doesnt match the number',
+                      'of instrument\n ',
+                      'or the number of frequencies by instrument doesnt match'
+                      ' the number of frequencies')
+
+            else:
+                miscal_matrix = 1
+                instrument_nb = 0
+                for angle in miscal_angles:
+
+                    rotation_block = np.array(
+                        [[np.cos(2*angle),  np.sin(2*angle)],
+                         [-np.sin(2*angle), np.cos(2*angle)]
+                         ])
+
+                    print(rotation_block)
+                    if type(miscal_matrix) == int:
+                        miscal_matrix = rotation_block
+                        for i in range(frequencies_by_instrument[instrument_nb]-1):
+                            miscal_matrix = block_diag(miscal_matrix,
+                                                       rotation_block)
+                    else:
+                        for i in range(frequencies_by_instrument[instrument_nb]):
+                            miscal_matrix = block_diag(miscal_matrix,
+                                                       rotation_block)
+                    instrument_nb += 1
+
+                self.miscal_matrix = miscal_matrix
+
+        except AttributeError:
+            print('No instrument frequencies !')
+
+    def get_data(self):
+        if hasattr(self, 'miscal_matrix'):
+            A_s = np.dot(self.mixing_matrix, self.signal)
+            M_A_s = np.dot(self.miscal_matrix, A_s)
+            self.data = M_A_s
+        else:
+            A_s = np.dot(self.mixing_matrix, self.signal)
+            self.data = A_s
+
+    def from_pysm2data(self):
+        self.get_pysm_sky()
+        self.get_frequency()
+        self.get_freq_maps()
+        self.cmb_rotation()
+        self.get_signal()
+        self.get_mixing_matrix()
+        self.get_miscalibration_angle_matrix()
+        self.get_data()
+        return self.data
 
 
 class Personne:

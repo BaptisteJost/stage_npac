@@ -689,12 +689,15 @@ def map_rotation(map, rotation_angle):
 
     else:
         print('squalala')
-        map_rotated = np.empty((3))
+        # map_rotated = np.empty((3))
+        map_rotated = np.empty(np.shape(map))
+
         Qrot = np.cos(2*rotation_angle)*map[1, :] - \
             np.sin(2 * rotation_angle)*map[2, :]
         Urot = np.sin(2*rotation_angle)*map[1, :] + \
             np.cos(2 * rotation_angle)*map[2, :]
-        map_rotated[0] = map[i, 0]
+        for i in range(len(map[0][:])):
+            map_rotated[0, i] = map[0, i]
         map_rotated[1] = Qrot
         map_rotated[2] = Urot
 
