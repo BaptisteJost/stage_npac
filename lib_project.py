@@ -671,8 +671,8 @@ def map_rotation(map, rotation_angle):
     len_map = len(np.shape(map))
     frequency_dependent = isinstance(rotation_angle, np.ndarray)
 
-    if 1-frequency_dependent:  # & len_map == 3:  # TODO: why ?
-
+    if 1-frequency_dependent and len_map == 3:  # TODO: why ?
+        print('Check map rotation !!!')
         rotation_angle = np.ones(len(map[:, 0, 0])) * rotation_angle
     if len_map == 3:
 
@@ -688,8 +688,7 @@ def map_rotation(map, rotation_angle):
             map_rotated[i, 2] = Urot
 
     else:
-        print('squalala')
-        # map_rotated = np.empty((3))
+
         map_rotated = np.empty(np.shape(map))
 
         Qrot = np.cos(2*rotation_angle)*map[1, :] - \

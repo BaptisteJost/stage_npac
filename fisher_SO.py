@@ -49,12 +49,7 @@ for i in [0, 1, 2]:
             print('le noise string = ', len(noise_str))
             noise_nl = V3.so_V3_SA_noise(i, j, SAT_yrs_LF, fsky_SAT,
                                          l_max_SAT)[1]
-            # except ValueError:
-            # print('oups')
 
-            # else:
-            #     print('Not a telescope')
-            # breakpoint()
             noise_cl = lib.get_cl_noise(noise_nl)[0, 0]
             SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
     if LAT:
@@ -71,7 +66,9 @@ for i in [0, 1, 2]:
 
 
 del noise_nl
-
+print('NOISE SAT =', SAT_noise_dict['00'])
+print(' shape NOISE SAT = ', np.shape(SAT_noise_dict['00']))
+# exit()
 ls = np.arange(SAT_noise_dict[
     list(SAT_noise_dict.keys())[0]].shape[0])
 for key in SAT_noise_dict:
@@ -303,6 +300,7 @@ if LAT:
 
     print('\n sigma_df = ')
     print(sigma_df, '\n')
+    print(sigma_df.to_latex())
 
 fisher_element_dict_T = {}
 for key in fisher_element_dict:
