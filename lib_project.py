@@ -703,6 +703,50 @@ def map_rotation(map, rotation_angle):
     return map_rotated
 
 
+def get_dr_cov_bir_EB(cl_prim_r1, alpha):
+    dr_cov_matrix = np.array(
+        [[cl_prim_r1[:, 0]*(np.sin(2 * alpha)**2), -cl_prim_r1[:, 0]*np.sin(4*alpha)*0.5],
+         [-cl_prim_r1[:, 0]*np.sin(4*alpha)*0.5, cl_prim_r1[:, 0]]]*(np.cos(2 * alpha)**2))
+    return dr_cov_matrix
+
+
+def fisher(cov, deriv, f_sky, cov2=None, deriv2=None, return_elements=False):
+    if cov2 is None:
+        cov2 = cov
+    if deriv2 is None:
+        deriv2 = deriv
+
+    cov_matrix_inv1 = np.linalg.inv(cov.T[2:])
+    cov_matrix_inv1 = cov_matrix_inv1.T
+
+    cov_matrix_inv2 = np.linalg.inv(cov2.T[2:])
+    cov_matrix_inv2 = cov_matrix_inv2.T
+
+    sq_in_trace1 = np.array(
+        [np.dot(cov_matrix_inv1[:, :, k], deriv[:, :, k+2])
+         for k in range(cov_matrix_inv1.shape[2])])
+
+    sq_in_trace2 = np.array(
+        [np.dot(cov_matrix_inv2[:, :, k], deriv2[:, :, k+2])
+         for k in range(cov_matrix_inv2.shape[2])])
+
+    in_trace = np.array([np.dot(sq_in_trace1[k, :, :], sq_in_trace2[k, :, :])
+                         for k in range(sq_in_trace1.shape[0])])
+
+    trace_fisher = np.trace(in_trace, axis1=1, axis2=2)
+
+    fisher_element = [0., 0.]
+
+    fisher = 0
+    for l in range(2, cov.shape[2]):
+        fisher += (2*l + 1) * 0.5 * f_sky * trace_fisher[l-2]
+        fisher_element.append((2*l + 1) * 0.5 * f_sky * trace_fisher[l-2])
+    fisher_element = np.array(fisher_element)
+    if return_elements:
+        return fisher, fisher_element
+    return fisher
+
+
 """""
 ----------------------------Function purgatory-------------------------------
 """""

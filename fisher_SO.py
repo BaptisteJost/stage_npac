@@ -1,3 +1,4 @@
+from fgbuster import visualization as visu
 from astropy import units as u
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ import copy
 from matplotlib.cm import get_cmap
 import matplotlib.text as mtext
 import matplotlib
+import IPython
 
 r = 0.0
 
@@ -21,6 +23,7 @@ LAT = 1
 if SAT:
     l_max_SAT = 300
     l_max_SAT_ = 300
+
     l_min_SAT = 30
     l_min_SAT_ = 30
 
@@ -310,6 +313,37 @@ for key in fisher_element_dict:
 plotpro.spectra(fisher_element_dict_T)
 plt.title('fisher element dict')
 plt.show()
+
+
+pars, results, powers_r1 = lib.get_basics(l_max=10000, raw_cl=True, ratio=r)
+cl_r1 = powers_r1['unlensed_total'][:l_max_SAT]
+key_corner = '22'
+cov_matrix = np.array(
+    [[noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 1], noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 4]],
+     [noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 4], noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 2]]])
+
+deriv1 = lib.cl_rotation_derivative(SAT_pure_ps, b_angle)
+
+deriv_matrix1 = np.array(
+    [[deriv1[l_min_SAT_:l_max_SAT_, 1], deriv1[l_min_SAT_:l_max_SAT_, 4]],
+     [deriv1[l_min_SAT_:l_max_SAT_, 4], deriv1[l_min_SAT_:l_max_SAT_, 2]]])
+
+deriv_matrix2 = lib.get_dr_cov_bir_EB(cl_r1, b_angle)
+
+fisher_alpha_err = np.array([
+    [lib.fisher(cov_matrix, deriv_matrix1, 0.1), lib.fisher(
+        cov_matrix, deriv_matrix1, 0.1, cov2=cov_matrix, deriv2=deriv_matrix2)],
+    [lib.fisher(cov_matrix, deriv_matrix1, 0.1, cov2=cov_matrix, deriv2=deriv_matrix2),
+     lib.fisher(cov_matrix, deriv_matrix2, 0.1)]
+])
+
+sigma2 = np.linalg.inv(fisher_alpha_err)
+visu.corner_norm([b_angle.value, r], sigma2, labels=[r'$\alpha$', r'$r$'])
+# plt.title(r'True $\alpha =${} $r =${}'.format(b_angle, r))
+plt.show()
+IPython.embed()
+
+
 print('END')
 
 
