@@ -13,11 +13,11 @@ import matplotlib.text as mtext
 import matplotlib
 import IPython
 
-r = 0.0
+r = 0.07
 
 pars, results, powers = lib.get_basics(l_max=10000, raw_cl=True, ratio=r)
 
-b_angle = 0.0 * u.deg
+b_angle = 0.5 * u.deg
 SAT = 1
 LAT = 1
 if SAT:
@@ -52,8 +52,9 @@ for i in [0, 1, 2]:
             print('le noise string = ', len(noise_str))
             noise_nl = V3.so_V3_SA_noise(i, j, SAT_yrs_LF, fsky_SAT,
                                          l_max_SAT)[1]
-
-            noise_cl = lib.get_cl_noise(noise_nl)[0, 0]
+            print('shape noise nl', np.shape(noise_nl))
+            noise_cl = lib.get_cl_noise(noise_nl, telescope='SAT')[0, 0]
+            print('shape noise cl = ', np.shape(noise_cl))
             SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
     if LAT:
         print('LAT')
@@ -63,10 +64,14 @@ for i in [0, 1, 2]:
         # try:
         noise_nl = V3.so_V3_LA_noise(i, fsky_SAT, l_max_SAT)[2]
         print('Shape noise_nl = ', np.shape(noise_nl))
-        noise_cl = lib.get_cl_noise(noise_nl)[0, 0]
+        noise_cl = lib.get_cl_noise(noise_nl, telescope='LAT')[0, 0]
 
         SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
 
+plt.plot(lib.get_normalised_cl(SAT_pure_ps[:, 2]))
+plt.xscale('log')
+plt.yscale('log')
+plt.show()
 
 del noise_nl
 print('NOISE SAT =', SAT_noise_dict['00'])
@@ -315,9 +320,9 @@ plt.title('fisher element dict')
 plt.show()
 
 
-pars, results, powers_r1 = lib.get_basics(l_max=10000, raw_cl=True, ratio=r)
+pars, results, powers_r1 = lib.get_basics(l_max=10000, raw_cl=True, ratio=1)
 cl_r1 = powers_r1['unlensed_total'][:l_max_SAT]
-key_corner = '22'
+key_corner = '00'
 cov_matrix = np.array(
     [[noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 1], noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 4]],
      [noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 4], noisy_spectra_dict[key_corner][l_min_SAT_:l_max_SAT_, 2]]])

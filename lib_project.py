@@ -636,7 +636,7 @@ def get_cl_noise(nl, telescope='SAT'):
     if telescope == 'SAT':
         frequencies = V3.so_V3_SA_bands()
     if telescope == 'LAT':
-        frequencies = V3.so_V3_LA_beams()
+        frequencies = V3.so_V3_LA_bands()
 
     components = [CMB(), Dust(150.), Synchrotron(20.)]
     A = MixingMatrix(*components)
@@ -705,8 +705,8 @@ def map_rotation(map, rotation_angle):
 
 def get_dr_cov_bir_EB(cl_prim_r1, alpha):
     dr_cov_matrix = np.array(
-        [[cl_prim_r1[:, 0]*(np.sin(2 * alpha)**2), -cl_prim_r1[:, 0]*np.sin(4*alpha)*0.5],
-         [-cl_prim_r1[:, 0]*np.sin(4*alpha)*0.5, cl_prim_r1[:, 0]]]*(np.cos(2 * alpha)**2))
+        [[cl_prim_r1[:, 2]*(np.sin(2 * alpha)**2), -cl_prim_r1[:, 2]*np.sin(4*alpha)*0.5],
+         [-cl_prim_r1[:, 2]*np.sin(4*alpha)*0.5, cl_prim_r1[:, 2]*(np.cos(2 * alpha)**2)]])
     return dr_cov_matrix
 
 
