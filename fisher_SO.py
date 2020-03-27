@@ -13,11 +13,11 @@ import matplotlib.text as mtext
 import matplotlib
 import IPython
 
-r = 0.07
+r = 0
 
 pars, results, powers = lib.get_basics(l_max=10000, raw_cl=True, ratio=r)
 
-b_angle = 0.5 * u.deg
+b_angle = 0 * u.rad
 SAT = 1
 LAT = 1
 if SAT:
@@ -30,6 +30,8 @@ if SAT:
     SAT_pure_ps = powers['total'][:l_max_SAT]
 
     fsky_SAT = 0.1
+    fsky_SAT_ = 0.1
+
     telescope = 'SAT'
     SAT_yrs_LF = 1
 
@@ -47,13 +49,21 @@ for i in [0, 1, 2]:
     if SAT:
         print('SAT')
         for j in [0, 1, 2]:
+            print('i', i)
             print('j', j)
             noise_str = '{}'.format(i)+'{}'.format(j)
             print('le noise string = ', len(noise_str))
-            noise_nl = V3.so_V3_SA_noise(i, j, SAT_yrs_LF, fsky_SAT,
+            noise_nl = V3.so_V3_SA_noise(i, j, SAT_yrs_LF, fsky_SAT_,
                                          l_max_SAT)[1]
+            ell = V3.so_V3_SA_noise(i, j, SAT_yrs_LF, fsky_SAT_,
+                                    l_max_SAT)[0]
+            print('SAT_yrs_LF', SAT_yrs_LF)
+            print('fsky_SAT', fsky_SAT)
+            print('l_max_SAT', l_max_SAT)
+            print('noise nl = ', noise_nl)
+            print('ell =', ell)
             print('shape noise nl', np.shape(noise_nl))
-            noise_cl = lib.get_cl_noise(noise_nl, telescope='SAT')[0, 0]
+            noise_cl = lib.get_cl_noise(noise_nl, instrument='SAT')[0, 0]
             print('shape noise cl = ', np.shape(noise_cl))
             SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
     if LAT:
@@ -64,7 +74,7 @@ for i in [0, 1, 2]:
         # try:
         noise_nl = V3.so_V3_LA_noise(i, fsky_SAT, l_max_SAT)[2]
         print('Shape noise_nl = ', np.shape(noise_nl))
-        noise_cl = lib.get_cl_noise(noise_nl, telescope='LAT')[0, 0]
+        noise_cl = lib.get_cl_noise(noise_nl, instrument='LAT')[0, 0]
 
         SAT_noise_dict[noise_str] = np.append([0, 0], noise_cl)
 
@@ -111,28 +121,60 @@ for key in SAT_noise_dict:
     noisy_spectra_dict[key] = copy.deepcopy(noisy_cmb_spectra.T)
 
     noisy_cmb_spectra = 0
+    if len(key) == 2:
+        print('coucou')
+        print(key)
 
-    truncated_fisher, fisher_element_dict[key] =\
-        copy.deepcopy(lib.truncated_fisher_angle(SAT_pure_ps, b_angle,
-                                                 noisy_spectra_dict[key],
-                                                 f_sky=fsky_SAT,
-                                                 return_elements=True,
-                                                 raw_cl=True, raw_cl_rot=True))
+        truncated_fisher, fisher_element_dict[key] =\
+            copy.deepcopy(lib.truncated_fisher_angle(SAT_pure_ps, b_angle,
+                                                     noisy_spectra_dict[key],
+                                                     f_sky=fsky_SAT_,
+                                                     return_elements=True,
+                                                     raw_cl=True, raw_cl_rot=True))
+        if key == '00':
+            arg1 = copy.deepcopy(SAT_pure_ps)
+            arg2 = b_angle,
+            arg3 = copy.deepcopy(noisy_spectra_dict[key])
+            arg4 = fsky_SAT_
+            arg5 = True
+            arg6 = True
+            arg7 = True
+            save_fishel = copy.deepcopy(fisher_element_dict[key])
+            print('diff 0 =', save_fishel[4] - fisher_element_dict['00'][4])
 
+    elif key == 'no noise':
+        truncated_fisher, fisher_element_dict[key] =\
+            copy.deepcopy(lib.truncated_fisher_angle(SAT_pure_ps, b_angle,
+                                                     noisy_spectra_dict[key],
+                                                     f_sky=1,
+                                                     return_elements=True,
+                                                     raw_cl=True, raw_cl_rot=True))
+
+    else:
+        print('else key', key)
+        truncated_fisher, fisher_element_dict[key] =\
+            copy.deepcopy(lib.truncated_fisher_angle(SAT_pure_ps, b_angle,
+                                                     noisy_spectra_dict[key],
+                                                     f_sky=fsky_SAT,
+                                                     return_elements=True,
+                                                     raw_cl=True, raw_cl_rot=True))
+
+print('diff 0.5 =', save_fishel[4] - fisher_element_dict['00'][4])
 
 ls = np.arange(fisher_element_dict[
     list(fisher_element_dict.keys())[0]].shape[1])
 
-for key in SAT_noise_dict:
-    plt.plot(ls, fisher_element_dict[key][4], label=key)
-plt.plot(ls, lib.get_normalised_cl(SAT_pure_ps).T[1], label='pure EE')
-plt.title('fisher EB element with noise ')
-plt.legend()
-plt.xlabel('ell')
-plt.ylabel('C_ell')
-plt.xscale('log')
-plt.yscale('log')
-plt.show()
+# for key in SAT_noise_dict:
+#     plt.plot(ls, fisher_element_dict[key][4], label=key)
+# print('diff 1 =', save_fishel[4] - fisher_element_dict['00'][4])
+# plt.plot(ls, lib.get_normalised_cl(SAT_pure_ps).T[1], label='pure EE')
+# plt.title('fisher EB element with noise ')
+# plt.legend()
+# plt.xlabel('ell')
+# plt.ylabel('C_ell')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.show()
 
 for key in SAT_noise_dict:
     plt.plot(ls, noisy_spectra_dict[key].T[4] / SAT_noise_dict[key], label=key)
@@ -157,6 +199,7 @@ sigma_dict_BB = {'no noise': 1/np.sqrt(sum(
 sigma_element_EB = {'no noise': 1/np.sqrt(fisher_element_dict['no noise'][4])}
 sigma_element_EE = {'no noise': 1/np.sqrt(fisher_element_dict['no noise'][1])}
 sigma_element_BB = {'no noise': 1/np.sqrt(fisher_element_dict['no noise'][2])}
+print('diff 2 =', save_fishel[4] - fisher_element_dict['00'][4])
 
 
 for key in SAT_noise_dict:
@@ -164,19 +207,24 @@ for key in SAT_noise_dict:
         fisher_sum_EB = sum(fisher_element_dict[key][4][l_min_SAT_:l_max_SAT_])
         fisher_sum_EE = sum(fisher_element_dict[key][1][l_min_SAT_:l_max_SAT_])
         fisher_sum_BB = sum(fisher_element_dict[key][2][l_min_SAT_:l_max_SAT_])
+        print('diff 3 =', save_fishel[4] - fisher_element_dict['00'][4])
+
     else:
         fisher_sum_EB = sum(fisher_element_dict[key][4][l_min_SAT:])
         fisher_sum_EE = sum(fisher_element_dict[key][1][l_min_SAT:])
         fisher_sum_BB = sum(fisher_element_dict[key][2][l_min_SAT:])
+        print('diff 4 =', save_fishel[4] - fisher_element_dict['00'][4])
 
     sigma_dict_EB[key] = 1/np.sqrt(fisher_sum_EB)
     sigma_element_EB[key] = 1/np.sqrt(fisher_element_dict[key][4])
+    print('diff 5 =', save_fishel[4] - fisher_element_dict['00'][4])
 
     sigma_dict_EE[key] = 1/np.sqrt(fisher_sum_EE)
     sigma_element_EE[key] = 1/np.sqrt(fisher_element_dict[key][1])
 
     sigma_dict_BB[key] = 1/np.sqrt(fisher_sum_BB)
     sigma_element_BB[key] = 1/np.sqrt(fisher_element_dict[key][2])
+    print('diff 6 =', save_fishel[4] - fisher_element_dict['00'][4])
 
 
 ls = np.arange(sigma_element_EB[
@@ -219,6 +267,8 @@ for key in fisher_element_dict:
                                  ' and 1/f :' + key[1],
                                  l_min=l_min_SAT_, dotted=True,
                                  color=color)
+        print('diff 7 =', save_fishel[4] - fisher_element_dict['00'][4])
+
         SAT_counter += 1
     elif key == 'no noise':
         plotpro.cumulative_error(fisher_element_dict[key][4],
@@ -229,6 +279,7 @@ for key in fisher_element_dict:
                                  label='sensitivity mode :'+key[0],
                                  l_min=l_min_SAT, color=color)
         LAT_counter += 1
+print('diff 8 =', save_fishel[4] - fisher_element_dict['00'][4])
 
 plt.title(r'Cumulative error on $ \alpha = $ {}$^\circ $ with SAT and LAT, and $ r = ${}'.
           format(b_angle.value, r))
@@ -313,6 +364,7 @@ if LAT:
 fisher_element_dict_T = {}
 for key in fisher_element_dict:
     fisher_element_dict_T[key] = fisher_element_dict[key][: -1].T
+print('diff 9 =', save_fishel[4] - fisher_element_dict['00'][4])
 
 
 plotpro.spectra(fisher_element_dict_T)

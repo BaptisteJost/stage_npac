@@ -465,7 +465,7 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
         get_truncated_covariance_matrix(cl_rot_noise)
 
     cl_da_truncated_array = get_truncated_covariance_matrix(cl_da)
-
+    # print('cl_da_truncated_array[4]=',cl_da_truncated_array[4])
     truncated_fisher_list = []
     truncated_fisher_element_list = []
 
@@ -483,9 +483,11 @@ def truncated_fisher_angle(cl_orig_for_deriv, angle, cl_rot_noise, f_sky=1,
         sq_in_trace = np.array([np.dot(cov_matrix_inv.T[k],
                                        cl_da_truncated_array[i].T[k+2])
                                 for k in range(cl_orig.shape[0]-2)])
+        # print('sum sq in trance = ', sum(sq_in_trace))
 
         in_trace = np.array([np.dot(sq_in_trace[k], sq_in_trace[k])
                              for k in range(sq_in_trace.shape[0])])
+        # print('sum in trace =', sum(in_trace))
 
         if np.shape(np.shape(cl_rot_noise_truncated_array[i].T[2:]))[0] == 1:
             trace_fisher = in_trace
@@ -631,11 +633,11 @@ def myindex(lst, target):
     return []
 
 
-def get_cl_noise(nl, telescope='SAT'):
+def get_cl_noise(nl, instrument='SAT'):
     nl_inv = 1/nl
-    if telescope == 'SAT':
+    if instrument == 'SAT':
         frequencies = V3.so_V3_SA_bands()
-    if telescope == 'LAT':
+    if instrument == 'LAT':
         frequencies = V3.so_V3_LA_bands()
 
     components = [CMB(), Dust(150.), Synchrotron(20.)]
@@ -715,9 +717,10 @@ def fisher(cov, deriv, f_sky, cov2=None, deriv2=None, return_elements=False):
         cov2 = cov
     if deriv2 is None:
         deriv2 = deriv
-
+    print('cov_matrix 48', cov[:, :, 18])
     cov_matrix_inv1 = np.linalg.inv(cov.T[2:])
     cov_matrix_inv1 = cov_matrix_inv1.T
+    print('cov_matrix_inv1 46', cov_matrix_inv1[:, :, 16])
 
     cov_matrix_inv2 = np.linalg.inv(cov2.T[2:])
     cov_matrix_inv2 = cov_matrix_inv2.T
@@ -725,6 +728,8 @@ def fisher(cov, deriv, f_sky, cov2=None, deriv2=None, return_elements=False):
     sq_in_trace1 = np.array(
         [np.dot(cov_matrix_inv1[:, :, k], deriv[:, :, k+2])
          for k in range(cov_matrix_inv1.shape[2])])
+    # print('sum sq in trace', sum(sq_in_trace1))
+    print('sq_in_trace1 16', sq_in_trace1[16])
 
     sq_in_trace2 = np.array(
         [np.dot(cov_matrix_inv2[:, :, k], deriv2[:, :, k+2])
@@ -732,9 +737,11 @@ def fisher(cov, deriv, f_sky, cov2=None, deriv2=None, return_elements=False):
 
     in_trace = np.array([np.dot(sq_in_trace1[k, :, :], sq_in_trace2[k, :, :])
                          for k in range(sq_in_trace1.shape[0])])
+    print('sum in trace', sum(in_trace))
+    print('in_trace 16 = ', in_trace[16])
 
     trace_fisher = np.trace(in_trace, axis1=1, axis2=2)
-
+    print('trace_fisher 16 = ', trace_fisher[16])
     fisher_element = [0., 0.]
 
     fisher = 0
