@@ -27,9 +27,9 @@ class sky_map:
     synchrotron_freq = 20
 
     def __init__(self, nside=128, instrument='SAT', sky_model='c1s0d0',
-                 bir_angle=0*u.rad,
+                 bir_angle=0.0*u.rad,
                  frequencies_by_instrument=[2, 2, 2],
-                 miscal_angles=[0.00575959, -0.5,  -0.04]*u.rad):
+                 miscal_angles=[0.2, 0.0, 0.0]*u.rad):
         # [0.00575959, -0.00575959,  0.00287979]*u.rad):
         # [0.33, -0.33, 0.33/2] * u.deg):
 
@@ -56,7 +56,12 @@ class sky_map:
     def _set_bir_angle(self, new_angle):
         # print('WARNING: birefringence angle changed, other attribute might',
         #       ' need updating')
-        self._bir_angle = new_angle
+        if type(new_angle) == u.quantity.Quantity:
+            new_angle_rad = new_angle.to(u.rad)
+        else:
+            print('no unit has be given for new angle, radian is assumed')
+            new_angle_rad = new_angle * u.rad
+        self._bir_angle = new_angle_rad
 
     nside = property(_get_nside)
     instrument = property(_get_instrument)
@@ -74,7 +79,7 @@ class sky_map:
             self.frequencies = V3.so_V3_SA_bands()
         if self.instrument == 'LAT':
             print(self.instrument)
-            self.frequencies = V3.so_V3_LA_beams()
+            self.frequencies = V3.so_V3_LA_bands()
 
     def get_freq_maps(self, output=0):
         cmb_freq_maps = self.sky.cmb(sky_map.cmb_freq) * \
@@ -239,10 +244,11 @@ class sky_map:
         return self.data
 
     def data2alm(self):
-        ones = np.ones(np.shape(self.data[-1]))
-        TQU_cmb = [ones, self.data[0], self.data[1]]
-        TQU_dust = [ones, self.data[2], self.data[3]]
-        TQU_synch = [ones, self.data[4], self.data[5]]
+        # TODO: DOUBLE CHECK THIS mix between data and signal, signal is probably the right one but must be checked
+        ones = np.ones(np.shape(self.signal[-1]))
+        TQU_cmb = [ones, self.signal[0], self.signal[1]]
+        TQU_dust = [ones, self.signal[2], self.signal[3]]
+        TQU_synch = [ones, self.signal[4], self.signal[5]]
         alm_cmb = hp.map2alm(TQU_cmb)
         alm_dust = hp.map2alm(TQU_dust)
         alm_synch = hp.map2alm(TQU_synch)
@@ -266,7 +272,6 @@ class sky_map:
             white_noise = np.repeat(V3.so_V3_SA_noise(2, 2, 1, 0.1,
                                                       self.nside*3)[2],
                                     2, 0)
-
             # self.white_noise = white_noise
             #
             noise_covariance = np.diag(
@@ -277,7 +282,6 @@ class sky_map:
             noise_N_ell = np.repeat(
                 V3.so_V3_SA_noise(2, 2, 1, 0.1, self.nside*3)[1],
                 2, 0)
-
             ells = np.shape(noise_N_ell)[-1]
             noise_cov_ell = [np.diag(noise_N_ell[:, k]) for k in range(ells)]
             inv_noise_cov_ell = [np.diag(1/noise_N_ell[:, k])
@@ -296,7 +300,7 @@ class sky_map:
         self.inv_noise_ell = inv_noise_cov_ell
 
     def prim_rotation(self):
-        cl_rot = lib.cl_rotation(self.prim, self.bir_angle*u.rad)
+        cl_rot = lib.cl_rotation(self.prim, self.bir_angle)
         self.cl_rot = cl_rot
 
     def get_bir_prior(self):
@@ -379,10 +383,11 @@ class sky_map:
 def get_chi_squared(angle_array, data_skm, model_skm, prior=False):
 
     # print('SHAPE ddt=', np.shape(ddt))
-    # model_skm.miscal_angles = [angle_array[0], 0, 0]
+    model_skm.miscal_angles = [angle_array[0], 0,
+                               0]  # , angle_array[1], 0]
     # model_skm.frequencies_by_instrument = [6, 0, 0]
 
-    model_skm.bir_angle = angle_array[0]
+    model_skm.bir_angle = angle_array[1]
 
     model_skm.get_miscalibration_angle_matrix()
     model_skm.cmb_rotation()
@@ -453,62 +458,71 @@ def get_chi_squared(angle_array, data_skm, model_skm, prior=False):
     return chi_squared
 
 
-data = sky_map()
-model = sky_map()
+def main():
 
-data.from_pysm2data()
-model.from_pysm2data()
+    data = sky_map()
+    model = sky_map()
 
-data.get_noise()
-model.get_noise()
+    data.from_pysm2data()
+    model.from_pysm2data()
 
-data.get_projection_op()
-model.get_projection_op()
+    data.get_noise()
+    model.get_noise()
+    # IPython.embed()
+    data.get_projection_op()
+    model.get_projection_op()
+    # IPython.embed()
 
-data.data2alm()
-model.data2alm()
+    data.data2alm()
+    model.data2alm()
 
-data.get_primordial_spectra()
-model.get_primordial_spectra()
+    data.get_primordial_spectra()
+    model.get_primordial_spectra()
+
+    start = time.time()
+    grid = np.arange(-1*np.pi, 1*np.pi, 2*np.pi/100)
+    # for i in grid:
+    #     get_chi_squared([i], data, model)
+
+    # print('time chi2 in s = ', time.time() - start)
+    # IPython.embed()
+
+    start = time.time()
+    prior_ = False
+    results = minimize(get_chi_squared, [0, 0], (data, model, prior_),
+                       bounds=[(-np.pi, np.pi), (-np.pi, np.pi)])
+    print('time minimize in s = ', time.time() - start)
+
+    IPython.embed()
+    # print('results = ', results.x)
+    # IPython.embed()
+    # print('hessian = ', results.hess_inv)
+
+    # visu.corner_norm(results.x, results.hess_inv)
+    plt.show()
+    # bir_grid, misc_grid = np.meshgrid(grid, grid,
+    # indexing='ij')
+    start = time.time()
+    get_chi_squared([0, 0, 0], data, model, prior=True)
+    print('time chi2 prior = ', time.time() - start)
+    # slice_chi2 = np.array([[get_chi_squared([i, j, 0, 0], data, model) for i in grid]
+    #                        for j in grid])
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    # ax.plot_surface(grid, misc_grid, slice_chi2, cmap=cm.viridis)
+    # plt.show()
+
+    plt.plot(grid, [-get_chi_squared([i], data, model) for i in grid])
+    print('time grid in s = ', time.time() - start)
+
+    # plt.yscale('log')
+    plt.show()
+
+    # IPython.embed()
+    exit()
 
 
-start = time.time()
-grid = np.arange(-1*np.pi, 1*np.pi, 2*np.pi/100)
-# for i in grid:
-#     get_chi_squared([i], data, model)
-
-# print('time chi2 in s = ', time.time() - start)
-# IPython.embed()
-
-start = time.time()
-prior_ = False
-# results = minimize(get_chi_squared, [0, 0, 0], (data, model, prior_),
-#                    bounds=[(-np.pi, np.pi), (-np.pi, np.pi), (-np.pi, np.pi)])
-print('time minimize in s = ', time.time() - start)
-
-IPython.embed()
-# print('results = ', results.x)
-IPython.embed()
-# print('hessian = ', results.hess_inv)
-
-# visu.corner_norm(results.x, results.hess_inv)
-plt.show()
-# bir_grid, misc_grid = np.meshgrid(grid, grid,
-# indexing='ij')
-start = time.time()
-get_chi_squared([0, 0, 0], data, model, prior=True)
-print('time chi2 prior = ', time.time() - start)
-# slice_chi2 = np.array([[get_chi_squared([i, j, 0, 0], data, model) for i in grid]
-#                        for j in grid])
-# fig = plt.figure()
-# ax = plt.axes(projection='3d')
-# ax.plot_surface(grid, misc_grid, slice_chi2, cmap=cm.viridis)
-# plt.show()
-
-plt.plot(grid, [-get_chi_squared([i], data, model) for i in grid])
-print('time grid in s = ', time.time() - start)
-
-# plt.yscale('log')
-plt.show()
-
-# IPython.embed()
+######################################################
+# MAIN CALL
+if __name__ == "__main__":
+    main()

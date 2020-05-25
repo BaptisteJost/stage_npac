@@ -19,20 +19,24 @@ def get_basics(l_max=5000, raw_cl=False, lens_potential=False, ratio=0.07):
     # This function sets up CosmoMC-like settings,
     # swith one massive neutrino and helium set using BBN consistency
     # pars.set_accuracy(AccuracyBoost=2)
-    # pars.Accuracy.AccurateBB = True
+    pars.Accuracy.AccurateBB = True
+    pars.Accuracy.AccuratePolarization = True
+
     pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.06, omk=0,
                        tau=0.06)
-    # camb.initialpower.InitialPowerLaw(tensor_parameterization =1)
+    # camb.initialpower.InitialPowerLaw(tensor_parameterization=1)
     pars.InitPower.set_params(As=2e-9, ns=0.965, r=ratio,
-                              parameterization="tensor_param_indeptilt")
+                              parameterization="tensor_param_indeptilt",
+                              nt=0, ntrun=0)
     pars.set_for_lmax(l_max, lens_potential_accuracy=1)  # !! why 1 ??
-    pars.max_eta_k_tensor = l_max + 100
+    pars.max_eta_k_tensor = l_max + 100  # 15000  # 100
     # if lmax=5000 max_eta_k_tensor=4981 works
     # too, maybe there is some improvement possible
 
     results = camb.get_results(pars)
     powers = results.get_cmb_power_spectra(pars, lmax=l_max, CMB_unit='muK',
                                            raw_cl=raw_cl)
+    # print(pars)
     if lens_potential:
         lens_potential_spectrum = results.get_lens_potential_cls(l_max)
         return pars, results, powers, lens_potential_spectrum
@@ -677,7 +681,7 @@ def map_rotation(map, rotation_angle):
         print('Check map rotation !!!')
         rotation_angle = np.ones(len(map[:, 0, 0])) * rotation_angle
     if len_map == 3:
-
+        print('if map rot')
         map_rotated = np.empty(np.shape(map))
 
         for i in range(len(map[:, 0, 0])):
@@ -690,7 +694,7 @@ def map_rotation(map, rotation_angle):
             map_rotated[i, 2] = Urot
 
     else:
-
+        print('else map rot')
         map_rotated = np.empty(np.shape(map))
 
         Qrot = np.cos(2*rotation_angle)*map[1, :] - \
@@ -757,3 +761,29 @@ def fisher(cov, deriv, f_sky, cov2=None, deriv2=None, return_elements=False):
 """""
 ----------------------------Function purgatory-------------------------------
 """""
+
+
+def test_likelihood(log_cov_matrix, data_matrix, inv_matrix, f_sky):
+    # cov_matrix_inv = np.linalg.inv(cov_matrix.T[2:]).T
+    cov_matrix_inv = inv_matrix
+
+    cov_dot_data = np.array([np.dot(cov_matrix_inv[:, :, k],
+                                    data_matrix[:, :, k])
+                             for k in range(np.shape(log_cov_matrix)[-1])])
+    # in_trace = np.log(cov_matrix.T[2:]) + cov_dot_data
+    # trace_likelihood = np.trace( in_trace, axis1=1, axis2=2 )
+    in_trace = cov_dot_data
+    # np.log(np.linalg.det(log_cov_matrix.T[2:]))
+    trace_likelihood = log_cov_matrix + np.trace(in_trace, axis1=1, axis2=2)
+
+    likelihood = 0
+
+    for l in range(2, np.shape(log_cov_matrix)[-1]):
+        # for l in range(900, 1200):
+        likelihood += (2*l + 1)*0.5 * f_sky * trace_likelihood[l-2]
+        if likelihood == np.inf:
+            # TODO : exception/error
+            print('likelihood = np.inf !!')
+            break
+
+    return likelihood
