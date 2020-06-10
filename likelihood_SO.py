@@ -383,14 +383,14 @@ class sky_map:
 def get_chi_squared(angle_array, data_skm, model_skm, prior=False):
 
     # print('SHAPE ddt=', np.shape(ddt))
-    model_skm.miscal_angles = [angle_array[0], 0,
-                               0]  # , angle_array[1], 0]
+    model_skm.miscal_angles = [angle_array[0], angle_array[1],
+                               angle_array[2]]  # , angle_array[1], 0]
     # model_skm.frequencies_by_instrument = [6, 0, 0]
 
-    model_skm.bir_angle = angle_array[1]
+    model_skm.bir_angle = 0  # angle_array[1]
 
     model_skm.get_miscalibration_angle_matrix()
-    model_skm.cmb_rotation()
+    # model_skm.cmb_rotation()
 
     if prior:
         # model_skm.from_pysm2data()
@@ -489,8 +489,8 @@ def main():
 
     start = time.time()
     prior_ = False
-    results = minimize(get_chi_squared, [0, 0], (data, model, prior_),
-                       bounds=[(-np.pi, np.pi), (-np.pi, np.pi)])
+    results = minimize(get_chi_squared, [0, 0, 0], (data, model, prior_),
+                       bounds=[(-np.pi, np.pi), (-np.pi, np.pi), (-np.pi, np.pi)])
     print('time minimize in s = ', time.time() - start)
 
     IPython.embed()
