@@ -216,10 +216,77 @@ def noise_maps_simulation(sensitivity, knee_mode, ny_lf, nside,
     return noise_maps, nhits
 
 
+def get_foreground_maps_and_cl(sky_obj, miscalibration_angle, frequencies2use,
+                               mask, mask_apo, wsp, purify_e, purify_b,
+                               return_dust=True, return_synchrotron=True,
+                               return_maps=False):
+    dust_map_freq = []
+    sync_map_freq = []
+    Cl_dust_freq = []
+    Cl_sync_freq = []
+
+    for f in frequencies2use:
+        if return_dust:
+            dust_maps_ = sky_obj.sky.dust(f) * \
+                convert_units('K_RJ', 'K_CMB', f)
+            dust_maps = lib.map_rotation(dust_maps_, miscalibration_angle)
+            dust_map_freq.append(dust_maps)
+            f2_dust = get_field(mask*dust_maps[1, :],
+                                mask*dust_maps[2, :], mask_apo,
+                                purify_e=purify_e, purify_b=purify_b)
+            Cl_dust_freq.append(compute_master(f2_dust, f2_dust, wsp))
+
+        if return_synchrotron:
+            sync_maps_ = sky_obj.sky.synchrotron(f) * \
+                convert_units('K_RJ', 'K_CMB', f)
+            sync_maps = lib.map_rotation(sync_maps_, miscalibration_angle)
+            sync_map_freq.append(sync_maps)
+
+            f2_sync = get_field(mask*sync_maps[1, :],
+                                mask*sync_maps[2, :], mask_apo,
+                                purify_e=purify_e, purify_b=purify_b)
+            Cl_sync_freq.append(compute_master(f2_sync, f2_sync, wsp))
+
+    if return_dust:
+        dust_map_freq = np.array(dust_map_freq)
+        Cl_dust_freq = np.array(Cl_dust_freq)
+
+    if return_synchrotron:
+        sync_map_freq = np.array(sync_map_freq)
+        Cl_sync_freq = np.array(Cl_sync_freq)
+    if return_maps:
+        if return_dust and return_synchrotron:
+            return Cl_dust_freq, Cl_sync_freq, dust_map_freq, sync_map_freq
+        elif return_dust:
+            return Cl_dust_freq, dust_map_freq
+        elif return_synchrotron:
+            return Cl_sync_freq, sync_map_freq
+    else:
+        return Cl_dust_freq, Cl_sync_freq
+
+
+def get_nsim_freq_cl(input_map, nsim, frequencies_index, mask, mask_apo,
+                     purify_e, purify_b, wsp):
+
+    Cl_nsim_freq = []
+    for i in range(nsim):
+        Cl_freq = []
+        for f in range(len(frequencies_index)):
+            f2 = get_field(mask*input_map[i, f, 1, :],
+                           mask*input_map[i, f, 2, :], mask_apo,
+                           purify_e=purify_e, purify_b=purify_b)
+            Cl_freq.append(compute_master(f2, f2, wsp))
+        Cl_nsim_freq.append(Cl_freq)
+    Cl_nsim_freq = np.array(Cl_nsim_freq)
+
+    return Cl_nsim_freq
+
+
 def main():
     nsim = 1
     purify_e = False
     rotation_angle = (0 * u.deg).to(u.rad)
+    miscalibration_angle = (0 * u.deg).to(u.rad)
     r = 0.0
     pysm_model = 'c1s0d0'
     f_sky_SAT = 0.1
@@ -260,31 +327,23 @@ def main():
     for f in frequencies2use:
         frequencies_index.append(sky_map.frequencies.tolist().index(f))
 
-    print('initializing Namaster ...')
-    start_namaster = time.time()
-    wsp = nmt.NmtWorkspace()
-    b = binning_definition(nside, lmin=lmin, lmax=lmax,
-                           nlb=nlb, custom_bins=custom_bins)
-    # wsp.wsp.ncls = 4
-    # nhits, noise_maps_, nlev = mknm.get_noise_sim(sensitivity=sensitivity,
-    #                                               knee_mode=knee_mode, ny_lf=ny_lf,
-    #                                               nside_out=nside,
-    #                                               norm_hits_map=hp.read_map(
-    #                                                   norm_hits_map_path),
-    #                                               no_inh=no_inh)
-
     noise_maps, nhits = noise_maps_simulation(
         sensitivity, knee_mode, ny_lf, nside,
         norm_hits_map_path, no_inh, frequencies_index)
 
     print('building mask ... ')
-    # mask = hp.read_map("outputs_22VTMDJN55_00000_00000/binary_mask_cut.fits")
     mask_ = hp.read_map(BBPipe_path +
                         "/test_mapbased_param/norm_nHits_SA_35FOV_G_nside512_binary.fits")
-    # mask_ = hp.read_map(
-    #     "/home/baptiste/BBPipe/test_mapbased_param/mask_04000.fits")
     mask = hp.ud_grade(mask_, nside)
     mask[np.where(nhits < 1e-6)[0]] = 0.0
+
+    '''***********************NAMASTER INITIALISATION***********************'''
+
+    print('initializing Namaster ...')
+    start_namaster = time.time()
+    wsp = nmt.NmtWorkspace()
+    b = binning_definition(nside, lmin=lmin, lmax=lmax,
+                           nlb=nlb, custom_bins=custom_bins)
 
     del mask_
     mask_apo = nmt.mask_apodization(
@@ -299,6 +358,7 @@ def main():
         [cltt, clee, clbb, clte], nside=nside, new=True, verbose=False)
     f2y0 = get_field(mp_q_sim, mp_u_sim, mask_apo)
     wsp.compute_coupling_matrix(f2y0, f2y0, b)
+
     print('Namaster initialized in {}s'.format(time.time() - start_namaster))
 
     """____________________________map creation____________________________"""
@@ -306,69 +366,23 @@ def main():
     if map_creation:
         print("creating maps ...")
 
-        # noise_maps = []
-        # # noise_maps_masked = []
-        #
-        # for i in frequencies_index:
-        #     noise_maps.append([noise_maps_[i*3],
-        #                        noise_maps_[i*3+1],
-        #                        noise_maps_[i*3+2]])
-        # noise_maps_masked.append([noise_maps_[i*3] * mask,
-        #                           noise_maps_[i*3+1] * mask,
-        #                           noise_maps_[i*3+2] * mask])
-        # noise_maps = np.array(noise_maps)
-        # noise_maps_masked = np.array(noise_maps_masked)
-
-        # del noise_maps_
-        # noise_maps.append(noise_maps_[i*3+2] * mask)
-
         print("creating foregrounds maps ...")
         start_map = time.time()
-        dust_map_freq = []
-        sync_map_freq = []
-        Cl_dust_freq = []
-        Cl_sync_freq = []
+        Cl_dust, Cl_sync, dust_map_freq, sync_map_freq = get_foreground_maps_and_cl(sky_map, miscalibration_angle,
+                                                                                    frequencies2use, mask, mask_apo, wsp,
+                                                                                    purify_e, purify_b, return_dust=True,
+                                                                                    return_synchrotron=True,
+                                                                                    return_maps=True)
         Cl_noise = []
-
-        i = 0
-        for f in frequencies2use:
-
-            dust_maps_ = sky_map.sky.dust(f) * \
-                convert_units('K_RJ', 'K_CMB', f)
-            dust_maps = lib.map_rotation(dust_maps_, rotation_angle)
-            dust_map_freq.append(dust_maps)
-
-            sync_maps_ = sky_map.sky.synchrotron(f) * \
-                convert_units('K_RJ', 'K_CMB', f)
-            sync_maps = lib.map_rotation(sync_maps_, rotation_angle)
-            sync_map_freq.append(sync_maps)
-
-            noise_maps_for_cl = noise_maps[i]
+        for f in range(len(frequencies2use)):
+            noise_maps_for_cl = noise_maps[f]
             f2_noise = get_field(mask*noise_maps_for_cl[1, :],
                                  mask*noise_maps_for_cl[2, :], mask_apo,
                                  purify_e=purify_e, purify_b=purify_b)
-
-            # f0_dust = nmt.NmtField(mask_apo, [mask*dust_maps[0, :]])
-
-            f2_dust = get_field(mask*dust_maps[1, :],
-                                mask*dust_maps[2, :], mask_apo,
-                                purify_e=purify_e, purify_b=purify_b)
-
-            # f0_sync = nmt.NmtField(mask_apo, [mask*sync_maps[0, :]])
-
-            f2_sync = get_field(mask*sync_maps[1, :],
-                                mask*sync_maps[2, :], mask_apo,
-                                purify_e=purify_e, purify_b=purify_b)
-            Cl_dust_freq.append(compute_master(f2_dust, f2_dust, wsp))
-            Cl_sync_freq.append(compute_master(f2_sync, f2_sync, wsp))
             Cl_noise.append(compute_master(f2_noise, f2_noise, wsp))
-            i += 1
-
-        dust_map_freq = np.array(dust_map_freq)
-        sync_map_freq = np.array(sync_map_freq)
-        Cl_dust = np.array(Cl_dust_freq)
-        Cl_sync = np.array(Cl_sync_freq)
         Cl_noise = np.array(Cl_noise)
+
+        # IPython.embed()
 
         cmb_map_nsim = []
         print("creating CMB map simulations ...")
@@ -377,9 +391,12 @@ def main():
         for i in range(nsim):
             # np.random.seed(int(time.time()))
             np.random.seed(i)
-
-            cmb_map = hp.synfast(spectra_cl.cl_rot.spectra.T, nside, new=True)
-            cmb_map_nsim.append(cmb_map + noise_maps[0])
+            cmb_map_freq = []
+            for f in range(len(frequencies2use)):
+                cmb_map = hp.synfast(spectra_cl.cl_rot.spectra.T, nside, new=True)
+                cmb_map_freq.append(cmb_map + noise_maps[f])
+            cmb_map_nsim.append(cmb_map_freq)
+        del cmb_map_freq
         print('shape noise maps=', np.shape(noise_maps))
         # cmb_map_nsim.append(cmb_map)
         # cmb_map_nsim = np.array(cmb_map_nsim) + noise_maps[0]
@@ -399,6 +416,8 @@ def main():
     """____________________________Cl estimation____________________________"""
     Cl_estimation = 1
     if Cl_estimation:
+        Cl_cmb = get_nsim_freq_cl(mask*cmb_map_nsim, nsim, frequencies_index, mask,
+                                  mask_apo, purify_e, purify_b, wsp)
         Cl_cmb = []
         Cl_cmb_dust = []
         Cl_cmb_sync = []
@@ -413,11 +432,11 @@ def main():
 
             # print(cmb_map)
             # f0_cmb = nmt.NmtField(mask_apo, [mask*cmb_map[0, :]])
-            f2_cmb = get_field(mask*cmb_map_nsim[i, 1, :],
-                               mask*cmb_map_nsim[i, 2, :], mask_apo,
+            f2_cmb = get_field(mask*cmb_map_nsim[i, 0, 1, :],
+                               mask*cmb_map_nsim[i, 0, 2, :], mask_apo,
                                purify_e=purify_e, purify_b=purify_b)
             Cl_cmb.append(compute_master(f2_cmb, f2_cmb, wsp))
-
+            IPython.embed()
             Cl_cmb_dust_freq = []
             Cl_cmb_sync_freq = []
             Cl_cmb_dust_sync_freq = []
@@ -1760,3 +1779,27 @@ if __name__ == "__main__":
 #     #     np.exp(in_exp[negative_index[0][-i]])
 #     i += 1
 # sigmafisherEEBBEB = alpha_grid_fisherEEBBEB[positive_index_fisher_EBE[0][i]]
+
+# wsp.wsp.ncls = 4
+# nhits, noise_maps_, nlev = mknm.get_noise_sim(sensitivity=sensitivity,
+#                                               knee_mode=knee_mode, ny_lf=ny_lf,
+#                                               nside_out=nside,
+#                                               norm_hits_map=hp.read_map(
+#                                                   norm_hits_map_path),
+#                                               no_inh=no_inh)
+
+# noise_maps = []
+# # noise_maps_masked = []
+#
+# for i in frequencies_index:
+#     noise_maps.append([noise_maps_[i*3],
+#                        noise_maps_[i*3+1],
+#                        noise_maps_[i*3+2]])
+# noise_maps_masked.append([noise_maps_[i*3] * mask,
+#                           noise_maps_[i*3+1] * mask,
+#                           noise_maps_[i*3+2] * mask])
+# noise_maps = np.array(noise_maps)
+# noise_maps_masked = np.array(noise_maps_masked)
+
+# del noise_maps_
+# noise_maps.append(noise_maps_[i*3+2] * mask)
