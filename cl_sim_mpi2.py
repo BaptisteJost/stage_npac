@@ -15,6 +15,7 @@ from scipy.optimize import minimize
 import numdifftools as nd
 import mk_noise_map2 as mknm
 import V3calc as V3
+from mpi4py import MPI
 
 
 def binning_definition(nside, lmin=2, lmax=200, nlb=[], custom_bins=False):
@@ -269,17 +270,47 @@ def get_nsim_freq_cl(input_map, nsim, frequencies_index, mask, mask_apo,
                      purify_e, purify_b, wsp):
 
     Cl_nsim_freq = []
-    for i in range(nsim):
-        Cl_freq = []
-        for f in range(len(frequencies_index)):
-            f2 = get_field(mask*input_map[i, f, 1, :],
-                           mask*input_map[i, f, 2, :], mask_apo,
-                           purify_e=purify_e, purify_b=purify_b)
-            Cl_freq.append(compute_master(f2, f2, wsp))
-        Cl_nsim_freq.append(Cl_freq)
-    Cl_nsim_freq = np.array(Cl_nsim_freq)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    print('SIZE = ', size)
+    print('nside =', nsim)
+    root = 0
+    Cl_freq = []
+    for f in range(len(frequencies_index)):
+        f2 = get_field(mask*input_map[f, 1, :],
+                       mask*input_map[f, 2, :], mask_apo,
+                       purify_e=purify_e, purify_b=purify_b)
+        Cl_freq.append(compute_master(f2, f2, wsp))
+    print('shape Cl_freq=', np.shape(Cl_freq))
+    Cl_freq = np.array(Cl_freq)
 
-    return Cl_nsim_freq
+    # shape_ = np.array(np.shape(Cl_freq))
+    # shape = np.append(nsim, shape_).tolist()
+    # print('shape shape = ', shape)
+    #
+    # Cl_nsim_freq = None
+    # if rank == 0:
+    #     Cl_nsim_freq = np.empty(shape)
+    # print('shape Cl_nsim_freq', np.shape(Cl_nsim_freq))
+    # comm.Gather(Cl_freq, Cl_nsim_freq, root)
+    # del Cl_freq
+    #
+    # if rank == 0:
+    #     Cl_nsim_freq = np.array(Cl_nsim_freq)
+    #
+    # else:
+    #     Cl_nsim_freq = np.empty(shape)
+    # comm.Bcast(Cl_nsim_freq, root)
+    # Cl_nsim_freq = np.array(Cl_nsim_freq)
+    # print('Cl_nsim_freq shape = ', Cl_nsim_freq.shape)
+
+    # Cl_nsim_freq = comm.gather(Cl_freq, root)
+    # Cl_nsim_freq.append(Cl_freq)
+    # Cl_nsim_freq = np.array(Cl_nsim_freq)
+    # Cl_nsim_freq = comm.bcast(Cl_nsim_freq, root)
+
+    return Cl_freq
 
 
 def min_and_error_nsim_freq(
@@ -287,6 +318,9 @@ def min_and_error_nsim_freq(
         spectra_used='all', spectra_indexation='NaMaster',
         minimisation_init=0.001,
         compute_error68=False, step_size=1e-4, output_grid=False):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    root = 0
     if spectra_indexation == 'NaMaster':
         indexation = {'EE': 0, 'BB': 3, 'EB': 1}
     elif spectra_indexation == 'CAMB':
@@ -298,88 +332,130 @@ def min_and_error_nsim_freq(
         if output_grid:
             grid_nsim_freq = []
 
-    for i in range(nsim):
-        minimisation_freq = []
-        H_freq = []
-        if compute_error68:
-            error_freq = []
-            if output_grid:
-                grid_freq = []
-
-        for f in range(len(frequencies_index)):
-            if spectra_used == 'all':
-                data_matrix = cf.power_spectra_obj(np.array(
-                    [[data_cl[i, f, indexation['EE']], data_cl[i, f, indexation['EB']]],
-                     [data_cl[i, f, indexation['EB']], data_cl[i, f, indexation['BB']]]]).T,
-                    bin.get_effective_ells())
-            else:
-                data_matrix = cf.power_spectra_obj(np.array(
-                    data_cl[i, f, indexation[spectra_used]]).T,
-                    bin.get_effective_ells())
-
-            minimisation_likelihood_results = minimize(
-                cf.likelihood_for_hessian_a, minimisation_init,
-                (model, data_matrix, bin, nside, f_sky_SAT, spectra_used),
-                jac=jac_n2logL)
-            H = nd.Hessian(cf.likelihood_for_hessian_a)(
-                minimisation_likelihood_results.x,
-                model, data_matrix, bin,
-                nside, f_sky_SAT, spectra_used)
-            minimisation_freq.append(minimisation_likelihood_results.x[0])
-            H_freq.append(H[0][0])
-            if compute_error68:
-                min_alpha = minimisation_likelihood_results.x[0] - 6/np.sqrt(H[0][0])
-                max_alpha = minimisation_likelihood_results.x[0] + 6/np.sqrt(H[0][0])
-                alpha_grid = np.arange(min_alpha, max_alpha, step_size)
-                error_ = grid_error(
-                    model, data_matrix, alpha_grid, bin, nside, f_sky_SAT,
-                    spectra_used=spectra_used,
-                    x_max_likelihood=minimisation_likelihood_results.x[0],
-                    output_grid=output_grid)
-                if output_grid:
-                    error_freq.append(error_[0])
-                    grid_freq.append(error_[1])
-                else:
-                    error_freq.append(error_)
-
-        minimisation_nsim_freq.append(minimisation_freq)
-        H_nsim_freq.append(H_freq)
-        del minimisation_freq
-        del H_freq
-
-        if compute_error68:
-            error_nsim_freq.append(error_freq)
-            del error_freq
-            if output_grid:
-                grid_nsim_freq.append(grid_freq)
-                del grid_freq
-
-    minimisation_nsim_freq = np.array(minimisation_nsim_freq)
-    H_nsim_freq = np.array(H_nsim_freq)
+    minimisation_freq = []
+    H_freq = []
     if compute_error68:
-        error_nsim_freq = np.array(error_nsim_freq)
+        error_freq = []
         if output_grid:
+            grid_freq = []
+
+    for f in range(len(frequencies_index)):
+        if spectra_used == 'all':
+            data_matrix = cf.power_spectra_obj(np.array(
+                [[data_cl[f, indexation['EE']], data_cl[f, indexation['EB']]],
+                 [data_cl[f, indexation['EB']], data_cl[f, indexation['BB']]]]).T,
+                bin.get_effective_ells())
+        else:
+            data_matrix = cf.power_spectra_obj(np.array(
+                data_cl[f, indexation[spectra_used]]).T,
+                bin.get_effective_ells())
+
+        minimisation_likelihood_results = minimize(
+            cf.likelihood_for_hessian_a, minimisation_init,
+            (model, data_matrix, bin, nside, f_sky_SAT, spectra_used),
+            jac=jac_n2logL)
+        H = nd.Hessian(cf.likelihood_for_hessian_a)(
+            minimisation_likelihood_results.x,
+            model, data_matrix, bin,
+            nside, f_sky_SAT, spectra_used)
+        minimisation_freq.append(minimisation_likelihood_results.x[0])
+        H_freq.append(H[0][0])
+        if compute_error68:
+            min_alpha = minimisation_likelihood_results.x[0] - 6/np.sqrt(H[0][0])
+            max_alpha = minimisation_likelihood_results.x[0] + 6/np.sqrt(H[0][0])
+            alpha_grid = np.arange(min_alpha, max_alpha, step_size)
+            error_ = grid_error(
+                model, data_matrix, alpha_grid, bin, nside, f_sky_SAT,
+                spectra_used=spectra_used,
+                x_max_likelihood=minimisation_likelihood_results.x[0],
+                output_grid=output_grid)
+            if output_grid:
+                error_freq.append(error_[0])
+                grid_freq.append(error_[1])
+            else:
+                error_freq.append(error_)
+
+    # minimisation_nsim_freq = comm.gather(minimisation_freq, root)
+    # minimisation_nsim_freq.append(minimisation_freq)
+    # H_nsim_freq = comm.gather(H_freq, root)
+    # H_nsim_freq.append(H_freq)
+    # del minimisation_freq
+    # del H_freq
+    minimisation_freq = np.array(minimisation_freq)
+    H_freq = np.array(H_freq)
+    # minimisation_nsim_freq = None
+    # H_nsim_freq = None
+    #
+    # if rank == 0:
+    #     minimisation_nsim_freq = np.empty([nsim, minimisation_freq.shape[0]])
+    #     H_nsim_freq = np.empty([nsim, H_freq.shape[0]])
+    #
+    # comm.Gather(minimisation_freq, minimisation_nsim_freq, root)
+    # comm.Gather(H_freq, H_nsim_freq, root)
+    #
+    # if rank == 0:
+    #     minimisation_nsim_freq = np.array(minimisation_nsim_freq)
+    #     H_nsim_freq = np.array(H_nsim_freq)
+    #
+    # else:
+    #     minimisation_nsim_freq = np.empty([nsim, minimisation_freq.shape[0]])
+    #     H_nsim_freq = np.empty([nsim, H_freq.shape[0]])
+    #
+    # comm.Bcast(minimisation_nsim_freq, root)
+    # comm.Bcast(H_nsim_freq, root)
+    #
+    # del minimisation_freq
+    # del H_freq
+    # minimisation_nsim_freq = np.array(minimisation_nsim_freq)
+    # H_nsim_freq = np.array(H_nsim_freq)
+
+    if compute_error68:
+        error_nsim_freq = comm.gather(error_freq, root)
+        # error_nsim_freq.append(error_freq)
+        del error_freq
+        if output_grid:
+            grid_nsim_freq = comm.gather(grid_freq, root)
+            # grid_nsim_freq.append(grid_freq)
+            del grid_freq
+
+    # minimisation_nsim_freq = comm.bcast(minimisation_nsim_freq, root)
+    # minimisation_nsim_freq = np.array(minimisation_nsim_freq)
+
+    # H_nsim_freq = comm.bcast(H_nsim_freq, root)
+    # H_nsim_freq = np.array(H_nsim_freq)
+    if compute_error68:
+        error_nsim_freq = comm.bcast(error_nsim_freq, root)
+        error_nsim_freq = np.array(error_nsim_freq)
+
+        if output_grid:
+            grid_nsim_freq = comm.bcast(grid_nsim_freq, root)
             grid_nsim_freq = np.array(grid_nsim_freq)
     if compute_error68 and output_grid:
         return minimisation_nsim_freq, H_nsim_freq, error_nsim_freq, grid_nsim_freq
     elif compute_error68:
         return minimisation_nsim_freq, H_nsim_freq, error_nsim_freq
 
-    return minimisation_nsim_freq, H_nsim_freq
+    return minimisation_freq, H_freq
 
 
 def main():
-    nsim = 10
+    comm = MPI.COMM_WORLD
+    mpi_rank = MPI.COMM_WORLD.Get_rank()
+    nsim = comm.Get_size()
+    print(mpi_rank, nsim)
+
+    root = 0
     purify_e = False
-    rotation_angle = (0 * u.deg).to(u.rad)
+    rotation_angle = (3 * u.deg).to(u.rad)
     miscalibration_angle = (0 * u.deg).to(u.rad)
     r = 0.0
     pysm_model = 'c1s0d0'
     f_sky_SAT = 0.1
     sensitivity = 0
     knee_mode = 0
-    # BBPipe_path = '/global/homes/j/jost/BBPipe'
-    BBPipe_path = '/home/baptiste/BBPipe'
+    BBPipe_path = '/global/homes/j/jost/BBPipe'
+    # BBPipe_path = '/home/baptiste/BBPipe'
+    save_path = '/global/homes/j/jost/test_namaster/96simu_93Ghz_alpha3deg/'
 
     norm_hits_map_path = BBPipe_path + '/test_mapbased_param/norm_nHits_SA_35FOV_G_nside512.fits'
     no_inh = False
@@ -414,13 +490,40 @@ def main():
         frequencies_index.append(sky_map.frequencies.tolist().index(f))
 
     noise_maps = []
-    for i in range(nsim):
-        noise_maps_sim, nhits = noise_maps_simulation(
-            sensitivity, knee_mode, ny_lf, nside,
-            norm_hits_map_path, no_inh, frequencies_index)
-        noise_maps.append(noise_maps_sim)
-        del noise_maps_sim
-    noise_maps = np.array(noise_maps)
+    np.random.seed(mpi_rank)
+    noise_maps_sim, nhits = noise_maps_simulation(
+        sensitivity, knee_mode, ny_lf, nside,
+        norm_hits_map_path, no_inh, frequencies_index)
+    print('noise_maps_sim shape = ', noise_maps_sim.shape)
+
+    noise_maps = np.array(noise_maps_sim)
+    # if mpi_rank == 0:
+    #     noise_maps = np.empty([nsim, noise_maps_sim.shape[0],
+    #                            noise_maps_sim.shape[1], noise_maps_sim.shape[2]])
+    #
+    # comm.Gather(noise_maps_sim, noise_maps, root)
+    # if mpi_rank == 0:
+    #     noise_maps = np.array(noise_maps)
+    #     print('noise_maps shape = ', noise_maps.shape)
+    # else:
+    #     noise_maps = np.empty([nsim, noise_maps_sim.shape[0],
+    #                            noise_maps_sim.shape[1], noise_maps_sim.shape[2]])
+    # comm.Bcast(noise_maps, root)
+    # print('noise_maps shape = ', noise_maps.shape)
+    #
+    # # noise_maps = comm.gather(noise_maps_sim, root)
+    # # noise_maps = comm.bcast(noise_maps, root)
+    #
+    # # noise_maps.append(noise_maps_sim)
+    del noise_maps_sim
+    # noise_maps = np.array(noise_maps)
+    # if comm.rank == 0:
+    #     np.save('noise_maps.npy', noise_maps)
+    print('noise_maps shape', noise_maps.shape)
+    print('noise_maps', noise_maps)
+
+    print('noise_maps type', type(noise_maps))
+    # exit()
     print('building mask ... ')
     mask_ = hp.read_map(BBPipe_path +
                         "/test_mapbased_param/norm_nHits_SA_35FOV_G_nside512_binary.fits")
@@ -464,7 +567,12 @@ def main():
             purify_e, purify_b, return_dust=True,
             return_synchrotron=True,
             return_maps=True)
-
+        # dust_map_freq = dust_map_freq * 100
+        # sync_map_freq = sync_map_freq * 100
+        # print('mask shape', mask.shape)
+        # print('mask type', type(mask))
+        # print('mask*noise_maps shape', (mask*noise_maps).shape)
+        # print('mask*noise_maps type', type(mask*noise_maps))
         Cl_noise = get_nsim_freq_cl(mask*noise_maps, nsim, frequencies_index, mask,
                                     mask_apo, purify_e, purify_b, wsp)
         # for f in range(len(frequencies2use)):
@@ -481,18 +589,50 @@ def main():
         print("creating CMB map simulations ...")
         print('WARNING binning_definition sets seed, CMB map created before, need proper solution')
         print('WARNING: for now seed will always be the same for debugging purposes')
-        for i in range(nsim):
-            # np.random.seed(int(time.time()))
-            np.random.seed(i)
-            cmb_map_freq = []
-            for f in range(len(frequencies2use)):
-                cmb_map = hp.synfast(spectra_cl.cl_rot.spectra.T, nside, new=True)
-                cmb_map_freq.append(cmb_map + noise_maps[i, f])
-            cmb_map_nsim.append(cmb_map_freq)
-        del cmb_map_freq
-        print('shape noise maps=', np.shape(noise_maps))
-        cmb_map_nsim = np.array(cmb_map_nsim)
+        # for i in range(nsim):
+        # np.random.seed(int(time.time()))
+        np.random.seed(mpi_rank)
+        cmb_map_freq = []
+        for f in range(len(frequencies2use)):
+            cmb_map = hp.synfast(spectra_cl.cl_rot.spectra.T, nside, new=True)
+            cmb_map_freq.append(cmb_map + noise_maps[f])
+        import os
+        import psutil
+        process = psutil.Process(os.getpid())
+        memory = process.memory_info().rss * u.byte
+        print('Memory used = ', memory.to(u.Gbyte))
+        print('Memory/size * 32 = ', (memory*32/nsim).to(u.Gbyte))
 
+        del noise_maps
+        cmb_map_freq = np.array(cmb_map_freq)
+        # cmb_map_nsim = comm.gather(cmb_map_freq, root)
+        # cmb_map_nsim = comm.bcast(cmb_map_nsim, root)
+
+        cmb_map_nsim = cmb_map_freq
+        # if mpi_rank == 0:
+        #     cmb_map_nsim = np.empty([nsim, cmb_map_freq.shape[0],
+        #                              cmb_map_freq.shape[1], cmb_map_freq.shape[2]])
+        # comm.Gather(cmb_map_freq, cmb_map_nsim, root)
+        #
+        # if mpi_rank == 0:
+        #     cmb_map_nsim = np.array(cmb_map_nsim)
+        #     print('cmb_map_nsim shape = ', cmb_map_nsim.shape)
+        # else:
+        #     cmb_map_nsim = np.empty([nsim, cmb_map_freq.shape[0],
+        #                              cmb_map_freq.shape[1], cmb_map_freq.shape[2]])
+        # comm.Bcast(cmb_map_nsim, root)
+        # print('cmb_map_nsim shape = ', cmb_map_nsim.shape)
+
+        # del cmb_map_freq
+        # cmb_map_nsim = np.array(cmb_map_nsim)
+
+        # cmb_map_nsim.append(cmb_map_freq)
+
+        # del cmb_map_freq
+        # print('shape noise maps=', np.shape(noise_maps))
+        # cmb_map_nsim = np.array(cmb_map_nsim)
+        if comm.rank == 0:
+            np.save(save_path + 'cmb_map_nsim.npy', cmb_map_nsim)
         print("")
         print("WARNING : noise maps added directly to cmb map")
         print("IT WILL CAUSE PB when multiple frequencies are used")
@@ -525,6 +665,13 @@ def main():
         noise_nl_ = V3.so_V3_SA_noise(sensitivity, knee_mode, 1, f_sky_SAT, 3*nside)[1]
         noise_nl = np.insert(noise_nl_[frequencies_index], 0, np.zeros([2]))
         noise_nl = b.bin_cell(noise_nl[:3*nside]).T
+
+        if comm.rank == 0:
+            np.save(save_path + 'Cl_cmb.npy', Cl_cmb)
+            np.save(save_path + 'Cl_cmb_dust.npy', Cl_cmb_dust)
+            np.save(save_path + 'Cl_cmb_sync.npy', Cl_cmb_sync)
+            np.save(save_path + 'Cl_cmb_dust_sync.npy', Cl_cmb_dust_sync)
+
         # IPython.embed()
 
     fl_plt_Cl1sp = 0
@@ -572,8 +719,8 @@ def main():
     # data_model = spectra_cl.instru_spectra.spectra
     data_model = b.bin_cell(copy.deepcopy(spectra_cl.instru_spectra.spectra[:3*nside]).T).T
     data_model_nobin = copy.deepcopy(spectra_cl.instru_spectra.spectra[:3*nside].T)
-    np.save('data_model_noise.npy', data_model)
-    np.save('data_model_nobin_noise.npy', data_model_nobin)
+    np.save(save_path + 'data_model_noise.npy', data_model)
+    np.save(save_path + 'data_model_nobin_noise.npy', data_model_nobin)
 
     # data_model = copy.deepcopy(spectra_cl.instru_spectra.spectra)
     # data_model_nobin = copy.deepcopy(spectra_cl.instru_spectra.spectra[:3*nside].T)
@@ -722,7 +869,56 @@ def main():
             spectra_used='all', spectra_indexation='NaMaster',
             minimisation_init=0.001,
             compute_error68=False, step_size=1e-5, output_grid=False)
-        IPython.embed()
+
+        fit_alpha_cmb_nsim = None
+        H_cmb_nsim = None
+        fit_alpha_cmb_dust_nsim = None
+        H_cmb_dust_nsim = None
+        fit_alpha_cmb_sync_nsim = None
+        H_cmb_sync_nsim = None
+        fit_alpha_cmb_dust_sync_nsim = None
+        H_cmb_dust_sync_nsim = None
+
+        if comm.rank == 0:
+            fit_alpha_cmb_nsim = np.empty([nsim, fit_alpha_cmb.shape[0]])
+            H_cmb_nsim = np.empty([nsim, H_cmb.shape[0]])
+
+            fit_alpha_cmb_dust_nsim = np.empty([nsim, fit_alpha_cmb_dust.shape[0]])
+            H_cmb_dust_nsim = np.empty([nsim, H_cmb_dust.shape[0]])
+
+            fit_alpha_cmb_sync_nsim = np.empty([nsim, fit_alpha_cmb_sync.shape[0]])
+            H_cmb_sync_nsim = np.empty([nsim, H_cmb_sync.shape[0]])
+
+            fit_alpha_cmb_dust_sync_nsim = np.empty([nsim, fit_alpha_cmb_dust_sync.shape[0]])
+            H_cmb_dust_sync_nsim = np.empty([nsim, H_cmb_dust_sync.shape[0]])
+
+        comm.Gather(fit_alpha_cmb, fit_alpha_cmb_nsim, root)
+        comm.Gather(H_cmb, H_cmb_nsim, root)
+
+        comm.Gather(fit_alpha_cmb_dust, fit_alpha_cmb_dust_nsim, root)
+        comm.Gather(H_cmb_dust, H_cmb_dust_nsim, root)
+
+        comm.Gather(fit_alpha_cmb_sync, fit_alpha_cmb_sync_nsim, root)
+        comm.Gather(H_cmb_sync, H_cmb_sync_nsim, root)
+
+        comm.Gather(fit_alpha_cmb_dust_sync, fit_alpha_cmb_dust_sync_nsim, root)
+        comm.Gather(H_cmb_dust_sync, H_cmb_dust_sync_nsim, root)
+
+        if comm.rank == 0:
+
+            np.save(save_path + 'fit_alpha_cmb.npy', fit_alpha_cmb_nsim)
+            np.save(save_path + 'H_cmb.npy', H_cmb_nsim)
+
+            np.save(save_path + 'fit_alpha_cmb_dust.npy', fit_alpha_cmb_dust_nsim)
+            np.save(save_path + 'H_cmb_dust.npy', H_cmb_dust_nsim)
+
+            np.save(save_path + 'fit_alpha_cmb_sync.npy', fit_alpha_cmb_sync_nsim)
+            np.save(save_path + 'H_cmb_sync.npy', H_cmb_sync_nsim)
+
+            np.save(save_path + 'fit_alpha_cmb_dust_sync.npy', fit_alpha_cmb_dust_sync_nsim)
+            np.save(save_path + 'H_cmb_dust_sync.npy', H_cmb_dust_sync_nsim)
+        exit()
+        # IPython.embed()
 
         # for i in range(nsim):
         #     fit_alpha_freq_cmb = []
