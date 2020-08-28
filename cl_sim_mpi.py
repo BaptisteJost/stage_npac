@@ -1,9 +1,9 @@
-import likelihood_SO as l_SO
-import class_faraday as cf
+import bjlib.likelihood_SO as l_SO
+import bjlib.class_faraday as cf
 import numpy as np
 import healpy as hp
 from pysm import convert_units
-import lib_project as lib
+import bjlib.lib_project as lib
 import copy
 # import pysm
 import pymaster as nmt
@@ -13,8 +13,8 @@ import time
 from astropy import units as u
 from scipy.optimize import minimize
 import numdifftools as nd
-import mk_noise_map2 as mknm
-import V3calc as V3
+import bjlib.mk_noise_map2 as mknm
+import bjlib.V3calc as V3
 from mpi4py import MPI
 
 
