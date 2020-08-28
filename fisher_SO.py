@@ -2,9 +2,9 @@ from fgbuster import visualization as visu
 from astropy import units as u
 import numpy as np
 import matplotlib.pyplot as plt
-import plot_project as plotpro
-import lib_project as lib
-import V3calc as V3
+import bjlib.plot_project as plotpro
+import bjlib.lib_project as lib
+import bjlib.V3calc as V3
 from pandas import DataFrame as df
 import pandas as pd
 import copy
